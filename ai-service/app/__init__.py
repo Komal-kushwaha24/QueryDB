@@ -1,0 +1,1 @@
+"""QueryDB AI service package."""

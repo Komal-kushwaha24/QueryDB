@@ -1,0 +1,1 @@
+-- PostgreSQL schema will be defined in a later implementation phase.
