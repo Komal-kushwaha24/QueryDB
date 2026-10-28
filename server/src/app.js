@@ -25,6 +25,25 @@ app.get('/api/health/db', async (_request, response) => {
   }
 });
 
+app.get('/api/schema', async (_request, response) => {
+  try {
+    const result = await pool.query(`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = $1 AND table_type = $2
+      ORDER BY table_name
+    `, ['public', 'BASE TABLE']);
+
+    response.json({ tables: result.rows.map((row) => row.table_name) });
+  } catch (error) {
+    console.error('Schema retrieval failed:', error.message);
+    response.status(503).json({
+      status: 'error',
+      message: 'Unable to retrieve the database schema.'
+    });
+  }
+});
+
 app.use((_request, response) => {
   response.status(404).json({ error: 'Route not found' });
 });
