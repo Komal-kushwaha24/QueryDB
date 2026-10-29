@@ -5,8 +5,6 @@ import {
   generateSqlApi,
   executeQueryApi,
   clarifyQuestion,
-  setForceMockMode,
-  getForceMockMode,
 } from '../services/api.js';
 
 import Sidebar from '../components/Sidebar.jsx';
@@ -18,14 +16,22 @@ import QueryStatus from '../components/QueryStatus.jsx';
 import ErrorMessage from '../components/ErrorMessage.jsx';
 import ClarificationPrompt from '../components/ClarificationPrompt.jsx';
 import DatabaseSchemaModal from '../components/DatabaseSchemaModal.jsx';
-
-import { Database, History, Sparkles, CheckCircle2 } from 'lucide-react';
+import DatabaseSchemaView from '../components/DatabaseSchemaView.jsx';
+import QueryHistoryView from '../components/QueryHistoryView.jsx';
+import ConnectionsView from '../components/ConnectionsView.jsx';
+import SettingsView from '../components/SettingsView.jsx';
 
 export default function Dashboard() {
-  // Navigation & modals
-  const [activeTab, setActiveTab] = useState('new-query');
+  // Navigation & tabs
+  const [activeTab, setActiveTab] = useState('new-query'); // 'new-query' | 'history' | 'saved' | 'schema' | 'connections' | 'settings'
   const [isSchemaModalOpen, setIsSchemaModalOpen] = useState(false);
   const [schemaTables, setSchemaTables] = useState([]);
+  const [allowedTables, setAllowedTables] = useState([
+    'students',
+    'companies',
+    'placements',
+    'courses',
+  ]);
 
   // Database status
   const [dbHealth, setDbHealth] = useState({
@@ -37,7 +43,7 @@ export default function Dashboard() {
 
   // Query workflow state
   const [question, setQuestion] = useState('Which CSE students got placed above 15 LPA?');
-  const [status, setStatus] = useState('completed'); // Default with initial showcase query matching mockup!
+  const [status, setStatus] = useState('completed'); // Default showcase query matching mockup
   const [loadingPhase, setLoadingPhase] = useState(''); // 'generating' | 'executing'
   const [generatedSql, setGeneratedSql] = useState(
     `SELECT s.name, c.name, p.package\nFROM students s\nJOIN placements p ON s.id = p.student_id\nJOIN companies c ON c.id = p.company_id\nWHERE s.department = 'CSE'\n  AND p.package > 15;`
@@ -69,20 +75,51 @@ export default function Dashboard() {
     '2 students found. Showing CSE students with package above 15 LPA.'
   );
 
-  // Error & clarification states
+  // Error & Clarification states (Page 2)
   const [error, setError] = useState(null);
   const [clarificationData, setClarificationData] = useState(null);
 
-  // Query History
+  // Query History & Saved queries (Page 3)
   const [history, setHistory] = useState([
     {
-      id: 'initial-1',
+      id: 'h-1',
       question: 'Which CSE students got placed above 15 LPA?',
+      database: 'My College DB',
+      rows: 2,
+      status: 'Success',
+      when: '10:42',
       sql: `SELECT s.name, c.name, p.package FROM students s JOIN placements p ON s.id = p.student_id JOIN companies c ON c.id = p.company_id WHERE s.department = 'CSE' AND p.package > 15;`,
-      rowCount: 2,
-      timestamp: new Date().toLocaleTimeString(),
+    },
+    {
+      id: 'h-2',
+      question: 'Show the best students',
+      database: 'My College DB',
+      rows: '-',
+      status: 'Clarified',
+      when: '10:38',
+      sql: `SELECT * FROM students ORDER BY cgpa DESC;`,
+    },
+    {
+      id: 'h-3',
+      question: 'Average package by department',
+      database: 'Sample DB',
+      rows: 5,
+      status: 'Success',
+      when: 'Yesterday',
+      sql: `SELECT department, AVG(package) FROM placements GROUP BY department;`,
+    },
+    {
+      id: 'h-4',
+      question: 'Delete all students',
+      database: 'Sample DB',
+      rows: '-',
+      status: 'Blocked',
+      when: 'Yesterday',
+      sql: `DELETE FROM students;`,
     },
   ]);
+
+  const [savedIds, setSavedIds] = useState(['h-1']);
 
   // Load database metadata on startup
   useEffect(() => {
@@ -101,7 +138,7 @@ export default function Dashboard() {
   }, []);
 
   /**
-   * Step 4 Workflow - Step 1: User enters question -> generate SQL
+   * Handle AI Generation
    */
   const handleGenerateSql = async (inputQuestion) => {
     const q = inputQuestion || question;
@@ -113,19 +150,23 @@ export default function Dashboard() {
     setLoadingPhase('generating');
 
     try {
-      // 1. Check clarification first
+      // 1. Clarification check
       const clarifyRes = await clarifyQuestion(q);
       if (clarifyRes.needsClarification) {
         setStatus('clarification');
         setClarificationData({
-          question: clarifyRes.clarificationQuestion,
-          options: clarifyRes.options,
+          question: q,
+          clarificationQuestion:
+            clarifyRes.clarificationQuestion || 'What do you mean by "best students"?',
+          options: clarifyRes.options?.length > 0
+            ? clarifyRes.options
+            : ['Highest CGPA', 'Highest placement package', 'Best attendance'],
         });
         setLoadingPhase('');
         return;
       }
 
-      // 2. Call AI generate endpoint
+      // 2. AI Generate SQL
       const genRes = await generateSqlApi(q);
 
       setGeneratedSql(genRes.sql);
@@ -142,11 +183,27 @@ export default function Dashboard() {
         code: err.code || 'SQL_GENERATION_FAILED',
         message: err.message || 'Failed to generate SQL query for the entered question.',
       });
+
+      // Record blocked in history if unsafe
+      if (err.code === 'UNSAFE_QUERY') {
+        setHistory((prev) => [
+          {
+            id: String(Date.now()),
+            question: q,
+            database: dbHealth.database,
+            rows: '-',
+            status: 'Blocked',
+            when: 'Just now',
+            sql: q,
+          },
+          ...prev,
+        ]);
+      }
     }
   };
 
   /**
-   * Step 4 Workflow - Step 2: User runs the generated SQL against PostgreSQL
+   * Handle Query Execution against PostgreSQL
    */
   const handleExecuteQuery = async () => {
     if (!generatedSql) return;
@@ -176,9 +233,11 @@ export default function Dashboard() {
         {
           id: String(Date.now()),
           question,
+          database: dbHealth.database,
+          rows: count,
+          status: 'Success',
+          when: 'Just now',
           sql: generatedSql,
-          rowCount: count,
-          timestamp: new Date().toLocaleTimeString(),
         },
         ...prev,
       ]);
@@ -211,44 +270,104 @@ export default function Dashboard() {
   };
 
   /**
-   * Clarification option selected
+   * Clarification option selected (Page 2 continue action)
    */
-  const handleClarificationOption = (optionText) => {
-    const resolvedQuestion = `${question} (${optionText})`;
+  const handleClarificationContinue = (selectedCriteria) => {
+    const original = clarificationData?.question || question;
+    const resolvedQuestion = `${original} (${selectedCriteria})`;
     setQuestion(resolvedQuestion);
     setClarificationData(null);
+
+    // Record Clarified in history
+    setHistory((prev) => [
+      {
+        id: String(Date.now()),
+        question: original,
+        database: dbHealth.database,
+        rows: '-',
+        status: 'Clarified',
+        when: 'Just now',
+        sql: `Clarified as: ${selectedCriteria}`,
+      },
+      ...prev,
+    ]);
+
     handleGenerateSql(resolvedQuestion);
+  };
+
+  /**
+   * Star toggle for Saved Queries
+   */
+  const handleToggleSave = (id) => {
+    setSavedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  /**
+   * Select a query from history to reload in New Query
+   */
+  const handleSelectHistoryQuery = (item) => {
+    setQuestion(item.question);
+    setActiveTab('new-query');
+    handleGenerateSql(item.question);
+  };
+
+  /**
+   * Toggle table allowed for AI in Database Schema view
+   */
+  const handleToggleTableAllowed = (tableName) => {
+    setAllowedTables((prev) =>
+      prev.includes(tableName)
+        ? prev.filter((t) => t !== tableName)
+        : [...prev, tableName]
+    );
+  };
+
+  // Header Title Resolver
+  const getHeaderTitle = () => {
+    switch (activeTab) {
+      case 'history':
+        return 'Query History';
+      case 'saved':
+        return 'Saved Queries';
+      case 'schema':
+        return 'Database Schema';
+      case 'connections':
+        return 'Connections';
+      case 'settings':
+        return 'Settings';
+      default:
+        return 'New Query';
+    }
   };
 
   return (
     <div className="flex min-h-screen bg-[#f8fafc] text-slate-800 font-sans antialiased">
-      {/* Left Sidebar */}
+      {/* Left Sidebar matching mockup */}
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        onOpenSchema={() => setIsSchemaModalOpen(true)}
+        onOpenSchema={() => setActiveTab('schema')}
         historyCount={history.length}
       />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        {/* Top Header Bar */}
+        {/* Top Header Bar matching all pages */}
         <header className="px-6 py-4 bg-white border-b border-slate-200/80 flex items-center justify-between sticky top-0 z-20 shadow-2xs">
           <div>
             <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-              {activeTab === 'history' ? 'Query History' : 'New Query'}
+              {getHeaderTitle()}
             </h2>
-            <p className="text-xs text-slate-500 hidden sm:block">
-              Ask natural language questions to query PostgreSQL safely using AI.
-            </p>
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Database Status Pill (from mockup) */}
+            {/* Database Status Pill from mockup */}
             <button
               type="button"
-              onClick={() => setIsSchemaModalOpen(true)}
-              className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/90 text-xs font-semibold hover:bg-emerald-100/70 transition-colors cursor-pointer shadow-2xs"
+              onClick={() => setActiveTab('schema')}
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#ecfdf5] text-emerald-800 border border-emerald-300 text-xs font-semibold hover:bg-emerald-100 transition-colors cursor-pointer shadow-2xs"
               title="Click to view schema"
             >
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -257,57 +376,10 @@ export default function Dashboard() {
           </div>
         </header>
 
-        {/* Body View Container */}
+        {/* Dynamic View Body */}
         <main className="p-6 max-w-6xl w-full mx-auto space-y-5">
-          {activeTab === 'history' ? (
-            /* Query History Tab View */
-            <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <History className="w-5 h-5 text-blue-600" />
-                  Past Executed Queries ({history.length})
-                </h3>
-                <button
-                  onClick={() => setActiveTab('new-query')}
-                  className="text-xs text-blue-600 hover:text-blue-800 font-semibold cursor-pointer"
-                >
-                  ← Back to New Query
-                </button>
-              </div>
-
-              {history.length === 0 ? (
-                <p className="text-xs text-slate-400 py-6 text-center">No queries run yet.</p>
-              ) : (
-                <div className="space-y-3">
-                  {history.map((item) => (
-                    <div
-                      key={item.id}
-                      className="p-4 rounded-lg bg-slate-50 border border-slate-200 hover:border-blue-300 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer"
-                      onClick={() => {
-                        setQuestion(item.question);
-                        setActiveTab('new-query');
-                        handleGenerateSql(item.question);
-                      }}
-                    >
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-800 mb-1">{item.question}</p>
-                        <code className="text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 block truncate max-w-xl">
-                          {item.sql}
-                        </code>
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-slate-500 shrink-0">
-                        <span>{item.rowCount} rows</span>
-                        <span className="text-slate-300">•</span>
-                        <span>{item.timestamp}</span>
-                        <span className="text-blue-600 font-semibold text-xs ml-2">Reload →</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            /* New Query Main View */
+          {/* TAB 1: NEW QUERY (PAGE 1) */}
+          {activeTab === 'new-query' && (
             <>
               {/* 1. Ask your database card */}
               <QueryInput
@@ -335,20 +407,7 @@ export default function Dashboard() {
                 />
               )}
 
-              {/* 3. Clarification prompt if ambiguous */}
-              {status === 'clarification' && clarificationData && (
-                <ClarificationPrompt
-                  question={clarificationData.question}
-                  options={clarificationData.options}
-                  onSelectOption={handleClarificationOption}
-                  onCancel={() => {
-                    setStatus('idle');
-                    setClarificationData(null);
-                  }}
-                />
-              )}
-
-              {/* 4. Status pill banner (e.g. ● 2 students found. Showing CSE students...) */}
+              {/* 3. Status pill banner (● 2 students found. Showing CSE students...) */}
               {status !== 'idle' && (
                 <QueryStatus
                   status={status}
@@ -359,7 +418,7 @@ export default function Dashboard() {
                 />
               )}
 
-              {/* 5. Two-column layout: Left = Generated SQL, Right = How we understood */}
+              {/* 4. Two-column layout: Left = Generated SQL, Right = How we understood */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 <SqlPreview
                   sql={generatedSql}
@@ -375,7 +434,7 @@ export default function Dashboard() {
                 />
               </div>
 
-              {/* 6. Results Table Card */}
+              {/* 5. Results Table Card */}
               <QueryResults
                 columns={columns}
                 rows={rows}
@@ -386,8 +445,61 @@ export default function Dashboard() {
               />
             </>
           )}
+
+          {/* TAB 2 & 3: QUERY HISTORY & SAVED QUERIES (PAGE 3) */}
+          {(activeTab === 'history' || activeTab === 'saved') && (
+            <QueryHistoryView
+              history={history}
+              savedIds={savedIds}
+              onToggleSave={handleToggleSave}
+              onSelectQuery={handleSelectHistoryQuery}
+              isSavedView={activeTab === 'saved'}
+            />
+          )}
+
+          {/* TAB 4: DATABASE SCHEMA (PAGE 4) */}
+          {activeTab === 'schema' && (
+            <DatabaseSchemaView
+              allowedTables={allowedTables}
+              onToggleTableAllowed={handleToggleTableAllowed}
+            />
+          )}
+
+          {/* TAB 5: CONNECTIONS (PAGE 5) */}
+          {activeTab === 'connections' && (
+            <ConnectionsView
+              onSwitchDatabase={(name) => {
+                setDbHealth((prev) => ({ ...prev, database: name }));
+                setActiveTab('new-query');
+              }}
+            />
+          )}
+
+          {/* TAB 6: SETTINGS */}
+          {activeTab === 'settings' && (
+            <SettingsView
+              onClearHistory={() => {
+                setHistory([]);
+                setSavedIds([]);
+              }}
+            />
+          )}
         </main>
       </div>
+
+      {/* PAGE 2: CLARIFICATION CARD (MODAL / OVERLAY) */}
+      {status === 'clarification' && clarificationData && (
+        <ClarificationPrompt
+          question={clarificationData.question}
+          clarificationQuestion={clarificationData.clarificationQuestion}
+          options={clarificationData.options}
+          onSelectOption={handleClarificationContinue}
+          onCancel={() => {
+            setStatus('idle');
+            setClarificationData(null);
+          }}
+        />
+      )}
 
       {/* Database Schema Reference Modal */}
       <DatabaseSchemaModal
