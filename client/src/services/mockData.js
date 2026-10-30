@@ -22,7 +22,8 @@ export const MOCK_SCHEMA_METADATA = [
       { name: 'name', dataType: 'varchar(100)', isNullable: false },
       { name: 'department', dataType: 'varchar(50)', isNullable: false },
       { name: 'cgpa', dataType: 'numeric(3,2)', isNullable: false },
-      { name: 'year', dataType: 'integer', isNullable: false },
+      { name: 'city', dataType: 'varchar(50)', isNullable: true },
+      { name: 'skills', dataType: 'varchar(200)', isNullable: true },
     ],
   },
   {
@@ -31,8 +32,8 @@ export const MOCK_SCHEMA_METADATA = [
     columns: [
       { name: 'id', dataType: 'integer', isPrimaryKey: true },
       { name: 'name', dataType: 'varchar(100)', isNullable: false },
-      { name: 'industry', dataType: 'varchar(50)', isNullable: true },
-      { name: 'tier', dataType: 'varchar(20)', isNullable: true },
+      { name: 'sector', dataType: 'varchar(50)', isNullable: true },
+      { name: 'city', dataType: 'varchar(50)', isNullable: true },
     ],
   },
   {
@@ -43,8 +44,7 @@ export const MOCK_SCHEMA_METADATA = [
       { name: 'student_id', dataType: 'integer', isForeignKey: true },
       { name: 'company_id', dataType: 'integer', isForeignKey: true },
       { name: 'package', dataType: 'numeric(5,2)', isNullable: false },
-      { name: 'role', dataType: 'varchar(100)', isNullable: true },
-      { name: 'placed_on', dataType: 'date', isNullable: true },
+      { name: 'placement_date', dataType: 'date', isNullable: true },
     ],
   },
   {
@@ -52,19 +52,19 @@ export const MOCK_SCHEMA_METADATA = [
     description: 'Academic course offerings',
     columns: [
       { name: 'id', dataType: 'integer', isPrimaryKey: true },
-      { name: 'course_code', dataType: 'varchar(20)', isPrimaryKey: true },
-      { name: 'title', dataType: 'varchar(120)', isNullable: false },
+      { name: 'name', dataType: 'varchar(120)', isNullable: false },
+      { name: 'department', dataType: 'varchar(50)', isNullable: false },
       { name: 'credits', dataType: 'integer', isNullable: false },
     ],
   },
   {
-    name: 'enrollments',
-    description: 'Student course registrations',
+    name: 'attendance',
+    description: 'Student course attendance records',
     columns: [
       { name: 'id', dataType: 'integer', isPrimaryKey: true },
       { name: 'student_id', dataType: 'integer', isForeignKey: true },
       { name: 'course_id', dataType: 'integer', isForeignKey: true },
-      { name: 'grade', dataType: 'varchar(5)', isNullable: true },
+      { name: 'percentage', dataType: 'numeric(5,2)', isNullable: false },
     ],
   },
 ];

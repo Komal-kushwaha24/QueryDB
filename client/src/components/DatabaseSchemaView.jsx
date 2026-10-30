@@ -26,8 +26,8 @@ export default function DatabaseSchemaView({
       columns: [
         { name: 'id', type: 'integer', key: 'PK', meaning: 'Unique company id' },
         { name: 'name', type: 'text', key: '', meaning: 'Company corporate name' },
-        { name: 'industry', type: 'text', key: '', meaning: 'Domain/Sector (Tech, Fin, etc.)' },
-        { name: 'tier', type: 'text', key: '', meaning: 'Recruiter tier level (Tier 1/2)' },
+        { name: 'sector', type: 'text', key: '', meaning: 'Industry sector (Tech, Finance...)' },
+        { name: 'city', type: 'text', key: '', meaning: 'Corporate headquarters city' },
       ],
       relationships: [
         'placements.company_id -> companies.id',
@@ -38,9 +38,8 @@ export default function DatabaseSchemaView({
         { name: 'id', type: 'integer', key: 'PK', meaning: 'Placement offer identifier' },
         { name: 'student_id', type: 'integer', key: 'FK', meaning: 'Placed student reference' },
         { name: 'company_id', type: 'integer', key: 'FK', meaning: 'Hiring company reference' },
-        { name: 'package', type: 'numeric', key: '', meaning: 'CTC salary offered in LPA' },
-        { name: 'role', type: 'text', key: '', meaning: 'Offered job designation' },
-        { name: 'placed_on', type: 'date', key: '', meaning: 'Date offer was accepted' },
+        { name: 'package', type: 'numeric', key: '', meaning: 'Annual salary package in LPA' },
+        { name: 'placement_date', type: 'date', key: '', meaning: 'Date placement offer was issued' },
       ],
       relationships: [
         'placements.student_id -> students.id',
@@ -50,12 +49,12 @@ export default function DatabaseSchemaView({
     courses: {
       columns: [
         { name: 'id', type: 'integer', key: 'PK', meaning: 'Course internal ID' },
-        { name: 'course_code', type: 'text', key: '', meaning: 'Catalog code (e.g. CS101)' },
-        { name: 'title', type: 'text', key: '', meaning: 'Course subject title' },
-        { name: 'credits', type: 'integer', key: '', meaning: 'Credits assigned' },
+        { name: 'name', type: 'text', key: '', meaning: 'Course subject title' },
+        { name: 'department', type: 'text', key: '', meaning: 'Offering academic department' },
+        { name: 'credits', type: 'integer', key: '', meaning: 'Academic credits assigned' },
       ],
       relationships: [
-        'enrollments.course_id -> courses.id',
+        'attendance.course_id -> courses.id',
       ],
     },
     attendance: {
