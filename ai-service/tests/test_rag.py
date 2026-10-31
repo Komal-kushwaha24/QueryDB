@@ -10,7 +10,15 @@ from fastapi.testclient import TestClient
 from app.rag.documents import build_schema_documents
 from app.rag.embeddings import normalize_embeddings
 from app.rag.index import SchemaVectorIndex
-from app.rag.retrieval import RetrievalError, RetrievalService
+from app.rag.retrieval import (
+    RetrievalError,
+    RetrievalService,
+    extract_active_join_conditions,
+    extract_foreign_key_edges,
+    find_bridge_tables,
+    format_schema_context,
+    retrieve_schema_context,
+)
 from app.rag.schema_loader import (
     SchemaConnectionError,
     SchemaHTTPError,
@@ -409,3 +417,895 @@ def test_retrieval_service_reuses_existing_index():
     assert len(res1) > 0
     assert len(res2) > 0
     assert loader.load.call_count == 1  # No additional schema loads
+
+
+FIVE_TABLE_SCHEMA = {
+    "schema": "public",
+    "tables": [
+        {
+            "name": "students",
+            "columns": [
+                {"name": "id", "dataType": "integer", "isNullable": False, "isPrimaryKey": True},
+                {"name": "name", "dataType": "character varying(100)", "isNullable": False, "isPrimaryKey": False},
+                {"name": "department", "dataType": "character varying(30)", "isNullable": False, "isPrimaryKey": False},
+                {"name": "cgpa", "dataType": "numeric(3,2)", "isNullable": False, "isPrimaryKey": False},
+                {"name": "city", "dataType": "character varying(80)", "isNullable": False, "isPrimaryKey": False},
+                {"name": "skills", "dataType": "text", "isNullable": False, "isPrimaryKey": False},
+            ],
+            "primaryKeyColumns": ["id"],
+            "foreignKeys": [],
+        },
+        {
+            "name": "companies",
+            "columns": [
+                {"name": "id", "dataType": "integer", "isNullable": False, "isPrimaryKey": True},
+                {"name": "name", "dataType": "character varying(100)", "isNullable": False, "isPrimaryKey": False},
+                {"name": "sector", "dataType": "character varying(80)", "isNullable": False, "isPrimaryKey": False},
+                {"name": "city", "dataType": "character varying(80)", "isNullable": False, "isPrimaryKey": False},
+            ],
+            "primaryKeyColumns": ["id"],
+            "foreignKeys": [],
+        },
+        {
+            "name": "courses",
+            "columns": [
+                {"name": "id", "dataType": "integer", "isNullable": False, "isPrimaryKey": True},
+                {"name": "name", "dataType": "character varying(120)", "isNullable": False, "isPrimaryKey": False},
+                {"name": "department", "dataType": "character varying(30)", "isNullable": False, "isPrimaryKey": False},
+                {"name": "credits", "dataType": "integer", "isNullable": False, "isPrimaryKey": False},
+            ],
+            "primaryKeyColumns": ["id"],
+            "foreignKeys": [],
+        },
+        {
+            "name": "placements",
+            "columns": [
+                {"name": "id", "dataType": "integer", "isNullable": False, "isPrimaryKey": True},
+                {"name": "student_id", "dataType": "integer", "isNullable": False, "isPrimaryKey": False},
+                {"name": "company_id", "dataType": "integer", "isNullable": False, "isPrimaryKey": False},
+                {"name": "package", "dataType": "numeric(5,2)", "isNullable": False, "isPrimaryKey": False},
+                {"name": "placement_date", "dataType": "date", "isNullable": False, "isPrimaryKey": False},
+            ],
+            "primaryKeyColumns": ["id"],
+            "foreignKeys": [
+                {
+                    "sourceTable": "placements",
+                    "sourceColumn": "student_id",
+                    "referencedTable": "students",
+                    "referencedColumn": "id",
+                },
+                {
+                    "sourceTable": "placements",
+                    "sourceColumn": "company_id",
+                    "referencedTable": "companies",
+                    "referencedColumn": "id",
+                },
+            ],
+        },
+        {
+            "name": "attendance",
+            "columns": [
+                {"name": "id", "dataType": "integer", "isNullable": False, "isPrimaryKey": True},
+                {"name": "student_id", "dataType": "integer", "isNullable": False, "isPrimaryKey": False},
+                {"name": "course_id", "dataType": "integer", "isNullable": False, "isPrimaryKey": False},
+                {"name": "percentage", "dataType": "numeric(5,2)", "isNullable": False, "isPrimaryKey": False},
+            ],
+            "primaryKeyColumns": ["id"],
+            "foreignKeys": [
+                {
+                    "sourceTable": "attendance",
+                    "sourceColumn": "student_id",
+                    "referencedTable": "students",
+                    "referencedColumn": "id",
+                },
+                {
+                    "sourceTable": "attendance",
+                    "sourceColumn": "course_id",
+                    "referencedTable": "courses",
+                    "referencedColumn": "id",
+                },
+            ],
+        },
+    ],
+}
+
+
+class FiveTableVectorEncoder:
+    """Deterministic keyword-based encoder for testing QueryDB 5-table scenarios."""
+    def encode(self, sentences, **kwargs):
+        table_keys = ["students", "companies", "courses", "placements", "attendance"]
+        vectors = []
+        for sentence in sentences:
+            text = sentence.lower()
+            vec = [0.0] * len(table_keys)
+            for i, key in enumerate(table_keys):
+                if f"table: {key}" in text:
+                    vec[i] = 10.0
+                elif key in text:
+                    vec[i] = 1.0
+            vectors.append(vec)
+        return np.asarray(vectors, dtype="float32")
+
+
+def test_metadata_contains_structured_incoming_foreign_keys():
+    docs = build_schema_documents(FIVE_TABLE_SCHEMA)
+    doc_map = {d.table_name: d for d in docs}
+    students_incoming = doc_map["students"].metadata.get("incomingForeignKeys", [])
+    assert len(students_incoming) == 2
+    ref_tables = {fk["sourceTable"] for fk in students_incoming}
+    assert ref_tables == {"placements", "attendance"}
+
+
+def test_bridge_table_expansion_students_and_courses():
+    loader = Mock()
+    loader.load.return_value = FIVE_TABLE_SCHEMA
+    encoder = FiveTableVectorEncoder()
+    service = RetrievalService(loader, encoder=encoder)
+    service.refresh()
+
+    # Query targeting students and courses (top_k=2)
+    context = service.retrieve_context(
+        question="Which students are enrolled in courses?",
+        top_k=2,
+        max_bridge_tables=2,
+    )
+
+    table_names = [t["table_name"] for t in context["tables"]]
+    # Both students and courses are directly retrieved, attendance is added as a bridge table
+    assert "students" in table_names
+    assert "courses" in table_names
+    assert "attendance" in table_names
+    assert len(table_names) == 3
+
+    # Check provenance and bridge flags
+    tables_by_name = {t["table_name"]: t for t in context["tables"]}
+    assert tables_by_name["students"]["is_bridge"] is False
+    assert tables_by_name["students"]["provenance"] == "semantic"
+    assert tables_by_name["students"]["score"] is not None
+
+    assert tables_by_name["courses"]["is_bridge"] is False
+    assert tables_by_name["courses"]["provenance"] == "semantic"
+
+    assert tables_by_name["attendance"]["is_bridge"] is True
+    assert tables_by_name["attendance"]["provenance"] == "relationship_expansion"
+    assert tables_by_name["attendance"]["score"] is None  # Score is not fabricated
+
+    # Check join conditions: only between active tables
+    assert context["join_conditions"] == [
+        "attendance.course_id = courses.id",
+        "attendance.student_id = students.id",
+    ]
+    assert context["allowed_tables"] == ["attendance", "courses", "students"]
+
+
+def test_bridge_table_expansion_students_and_companies():
+    loader = Mock()
+    loader.load.return_value = FIVE_TABLE_SCHEMA
+    encoder = FiveTableVectorEncoder()
+    service = RetrievalService(loader, encoder=encoder)
+    service.refresh()
+
+    # Query targeting students and companies (top_k=2)
+    context = service.retrieve_context(
+        question="Which students got placed in companies?",
+        top_k=2,
+        max_bridge_tables=2,
+    )
+
+    table_names = [t["table_name"] for t in context["tables"]]
+    assert "students" in table_names
+    assert "companies" in table_names
+    assert "placements" in table_names
+
+    tables_by_name = {t["table_name"]: t for t in context["tables"]}
+    assert tables_by_name["placements"]["is_bridge"] is True
+    assert tables_by_name["placements"]["provenance"] == "relationship_expansion"
+
+    assert context["join_conditions"] == [
+        "placements.company_id = companies.id",
+        "placements.student_id = students.id",
+    ]
+
+
+def test_placement_query_direct_placements_retrieved():
+    loader = Mock()
+    loader.load.return_value = FIVE_TABLE_SCHEMA
+    encoder = FiveTableVectorEncoder()
+    service = RetrievalService(loader, encoder=encoder)
+    service.refresh()
+
+    # Query retrieving placements, students, and companies directly (top_k=3)
+    context = service.retrieve_context(
+        question="students companies placements package details",
+        top_k=3,
+        max_bridge_tables=2,
+    )
+
+    table_names = [t["table_name"] for t in context["tables"]]
+    assert set(table_names) == {"placements", "students", "companies"}
+    # None should be marked as bridge since all were directly retrieved
+    for table in context["tables"]:
+        assert table["is_bridge"] is False
+        assert table["provenance"] == "semantic"
+
+    assert context["join_conditions"] == [
+        "placements.company_id = companies.id",
+        "placements.student_id = students.id",
+    ]
+
+
+def test_disconnected_tables_no_fabricated_joins():
+    disconnected_schema = {
+        "schema": "public",
+        "tables": [
+            {
+                "name": "students",
+                "columns": [{"name": "id", "dataType": "integer", "isNullable": False, "isPrimaryKey": True}],
+                "primaryKeyColumns": ["id"],
+                "foreignKeys": [],
+            },
+            {
+                "name": "audit_logs",
+                "columns": [{"name": "log_id", "dataType": "integer", "isNullable": False, "isPrimaryKey": True}],
+                "primaryKeyColumns": ["log_id"],
+                "foreignKeys": [],
+            },
+        ],
+    }
+    loader = Mock()
+    loader.load.return_value = disconnected_schema
+    encoder = VectorEncoder()
+    service = RetrievalService(loader, encoder=encoder)
+    service.refresh()
+
+    context = service.retrieve_context(
+        question="students audit_logs",
+        top_k=2,
+        max_bridge_tables=2,
+    )
+
+    assert set(context["allowed_tables"]) == {"audit_logs", "students"}
+    assert context["join_conditions"] == []
+    assert "### Available Join Conditions\n- none" in context["prompt_context"]
+
+
+def test_configurable_expansion_limits():
+    loader = Mock()
+    loader.load.return_value = FIVE_TABLE_SCHEMA
+    encoder = FiveTableVectorEncoder()
+    service = RetrievalService(loader, encoder=encoder)
+    service.refresh()
+
+    # With max_bridge_tables=0, no bridge tables should be added
+    context_zero = service.retrieve_context(
+        question="students courses",
+        top_k=2,
+        max_bridge_tables=0,
+    )
+    table_names_zero = [t["table_name"] for t in context_zero["tables"]]
+    assert "attendance" not in table_names_zero
+    assert context_zero["join_conditions"] == []
+
+    # With max_bridge_tables=1, exactly one bridge table is added
+    context_one = service.retrieve_context(
+        question="students courses",
+        top_k=2,
+        max_bridge_tables=1,
+    )
+    table_names_one = [t["table_name"] for t in context_one["tables"]]
+    assert "attendance" in table_names_one
+
+
+def test_junction_completion_courses_and_attendance_includes_students():
+    loader = Mock()
+    loader.load.return_value = FIVE_TABLE_SCHEMA
+
+    class CoursesAttendanceFirstEncoder:
+        def encode(self, sentences, **kwargs):
+            table_keys = ["courses", "attendance", "students", "placements", "companies"]
+            vectors = []
+            for sentence in sentences:
+                text = sentence.lower()
+                vec = [0.0] * len(table_keys)
+                for i, key in enumerate(table_keys):
+                    if f"table: {key}" in text:
+                        vec[i] = 10.0
+                    elif key in text:
+                        vec[i] = 1.0
+                vectors.append(vec)
+            return np.asarray(vectors, dtype="float32")
+
+    service = RetrievalService(loader, encoder=CoursesAttendanceFirstEncoder())
+    service.refresh()
+
+    context = service.retrieve_context(
+        question="courses attendance",
+        top_k=2,
+        max_bridge_tables=2,
+    )
+
+    table_names = [t["table_name"] for t in context["tables"]]
+    assert "courses" in table_names
+    assert "attendance" in table_names
+    assert "students" in table_names
+    assert len(table_names) == 3
+
+    tables_by_name = {t["table_name"]: t for t in context["tables"]}
+    assert tables_by_name["courses"]["is_bridge"] is False
+    assert tables_by_name["courses"]["provenance"] == "semantic"
+    assert tables_by_name["attendance"]["is_bridge"] is False
+    assert tables_by_name["attendance"]["provenance"] == "semantic"
+
+    assert tables_by_name["students"]["is_bridge"] is True
+    assert tables_by_name["students"]["provenance"] == "relationship_expansion"
+    assert tables_by_name["students"]["score"] is None
+
+    assert context["join_conditions"] == [
+        "attendance.course_id = courses.id",
+        "attendance.student_id = students.id",
+    ]
+    assert context["allowed_tables"] == ["attendance", "courses", "students"]
+
+
+def test_junction_completion_placements_and_companies_includes_students():
+    loader = Mock()
+    loader.load.return_value = FIVE_TABLE_SCHEMA
+
+    class PlacementsCompaniesFirstEncoder:
+        def encode(self, sentences, **kwargs):
+            table_keys = ["placements", "companies", "students", "courses", "attendance"]
+            vectors = []
+            for sentence in sentences:
+                text = sentence.lower()
+                vec = [0.0] * len(table_keys)
+                for i, key in enumerate(table_keys):
+                    if f"table: {key}" in text:
+                        vec[i] = 10.0
+                    elif key in text:
+                        vec[i] = 1.0
+                vectors.append(vec)
+            return np.asarray(vectors, dtype="float32")
+
+    service = RetrievalService(loader, encoder=PlacementsCompaniesFirstEncoder())
+    service.refresh()
+
+    context = service.retrieve_context(
+        question="placements companies",
+        top_k=2,
+        max_bridge_tables=2,
+    )
+
+    table_names = [t["table_name"] for t in context["tables"]]
+    assert "placements" in table_names
+    assert "companies" in table_names
+    assert "students" in table_names
+
+    tables_by_name = {t["table_name"]: t for t in context["tables"]}
+    assert tables_by_name["students"]["is_bridge"] is True
+    assert tables_by_name["students"]["provenance"] == "relationship_expansion"
+    assert tables_by_name["students"]["score"] is None
+
+    assert context["join_conditions"] == [
+        "placements.company_id = companies.id",
+        "placements.student_id = students.id",
+    ]
+
+
+def test_courses_and_companies_no_unrelated_tables():
+    loader = Mock()
+    loader.load.return_value = FIVE_TABLE_SCHEMA
+
+    class CoursesCompaniesFirstEncoder:
+        def encode(self, sentences, **kwargs):
+            table_keys = ["courses", "companies", "students", "placements", "attendance"]
+            vectors = []
+            for sentence in sentences:
+                text = sentence.lower()
+                vec = [0.0] * len(table_keys)
+                for i, key in enumerate(table_keys):
+                    if f"table: {key}" in text:
+                        vec[i] = 10.0
+                    elif key in text:
+                        vec[i] = 1.0
+                vectors.append(vec)
+            return np.asarray(vectors, dtype="float32")
+
+    service = RetrievalService(loader, encoder=CoursesCompaniesFirstEncoder())
+    service.refresh()
+
+    context = service.retrieve_context(
+        question="courses companies",
+        top_k=2,
+        max_bridge_tables=2,
+    )
+
+    table_names = [t["table_name"] for t in context["tables"]]
+    assert set(table_names) == {"courses", "companies"}
+    assert context["join_conditions"] == []
+
+
+def test_strict_expansion_limit_never_exceeded():
+    loader = Mock()
+    loader.load.return_value = FIVE_TABLE_SCHEMA
+
+    class CoursesAttendanceFirstEncoder:
+        def encode(self, sentences, **kwargs):
+            table_keys = ["courses", "attendance", "students", "placements", "companies"]
+            vectors = []
+            for sentence in sentences:
+                text = sentence.lower()
+                vec = [0.0] * len(table_keys)
+                for i, key in enumerate(table_keys):
+                    if f"table: {key}" in text:
+                        vec[i] = 10.0
+                    elif key in text:
+                        vec[i] = 1.0
+                vectors.append(vec)
+            return np.asarray(vectors, dtype="float32")
+
+    service = RetrievalService(loader, encoder=CoursesAttendanceFirstEncoder())
+    service.refresh()
+
+    # Even if max_bridge_tables is 1, only 1 table is added
+    context = service.retrieve_context(
+        question="courses attendance",
+        top_k=2,
+        max_bridge_tables=1,
+    )
+    bridge_tables = [t for t in context["tables"] if t["is_bridge"]]
+    assert len(bridge_tables) == 1
+    assert bridge_tables[0]["table_name"] == "students"
+
+
+def test_schema_context_formatter_output():
+    tables = [
+        {
+            "table_name": "students",
+            "is_bridge": False,
+            "metadata": {
+                "columns": [
+                    {"name": "id", "dataType": "integer", "isPrimaryKey": True, "isNullable": False},
+                    {"name": "name", "dataType": "varchar", "isPrimaryKey": False, "isNullable": True},
+                ],
+                "primaryKeyColumns": ["id"],
+            },
+        },
+        {
+            "table_name": "attendance",
+            "is_bridge": True,
+            "metadata": {
+                "columns": [
+                    {"name": "id", "dataType": "integer", "isPrimaryKey": True, "isNullable": False},
+                    {"name": "student_id", "dataType": "integer", "isPrimaryKey": False, "isNullable": False},
+                ],
+                "primaryKeyColumns": ["id"],
+            },
+        },
+    ]
+    joins = ["attendance.student_id = students.id"]
+    output = format_schema_context(tables, joins)
+
+    assert "### Database Schema Context" in output
+    assert "#### Table: students" in output
+    assert "#### Table: attendance (Bridge Table)" in output
+    assert "- id: integer (primary key, not nullable)" in output
+    assert "- name: varchar" in output
+    assert "### Available Join Conditions" in output
+    assert "- attendance.student_id = students.id" in output
+
+
+def test_api_backward_compatibility_retrieve():
+    from app.main import app
+    client = TestClient(app)
+
+    with patch("app.main.retrieve_schema", return_value=[{
+        "table_name": "students",
+        "description": "Schema: public\nTable: students",
+        "relationships": [],
+        "metadata": {"name": "students"},
+        "score": 0.85,
+    }]):
+        response = client.post("/rag/retrieve", json={"question": "students query", "top_k": 3})
+        assert response.status_code == 200
+        data = response.json()
+        assert "results" in data
+        first = data["results"][0]
+        # Verify all 5 original fields exist and are preserved
+        assert "table_name" in first
+        assert "description" in first
+        assert "relationships" in first
+        assert "metadata" in first
+        assert "score" in first
+
+
+def test_api_context_endpoint_contract():
+    from app.main import app
+    client = TestClient(app)
+
+    mock_context = {
+        "tables": [{
+            "table_name": "students",
+            "description": "Schema: public\nTable: students",
+            "relationships": [],
+            "metadata": {"name": "students"},
+            "score": 0.9,
+            "is_bridge": False,
+            "provenance": "semantic",
+        }],
+        "join_conditions": ["attendance.student_id = students.id"],
+        "allowed_tables": ["attendance", "students"],
+        "prompt_context": "### Database Schema Context...",
+    }
+
+    with patch("app.main.retrieve_schema_context", return_value=mock_context):
+        response = client.post(
+            "/rag/context",
+            json={"question": "show students", "top_k": 3, "max_bridge_tables": 2},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "tables" in data
+        assert "join_conditions" in data
+        assert "allowed_tables" in data
+        assert "prompt_context" in data
+        assert data["allowed_tables"] == ["attendance", "students"]
+
+
+def test_multi_user_and_dataset_isolation():
+    loader = Mock()
+    loader.load.return_value = FIVE_TABLE_SCHEMA
+    encoder = FiveTableVectorEncoder()
+    service = RetrievalService(loader, encoder=encoder)
+
+    # Refresh user_1 on dataset_1
+    service.refresh(user_id="user_1", dataset_id="dataset_1")
+
+    # Refresh user_2 on dataset_2 with 2-table schema
+    loader.load.return_value = SCHEMA
+    service.refresh(user_id="user_2", dataset_id="dataset_2")
+
+    # user_1 should see 5 tables
+    res_1 = service.retrieve("students", user_id="user_1", dataset_id="dataset_1")
+    assert len(res_1) > 0
+
+    # user_2 should see 2 tables
+    res_2 = service.retrieve("students", user_id="user_2", dataset_id="dataset_2")
+    assert len(res_2) > 0
+
+    # unrefreshed user_3 should raise RetrievalError
+    with pytest.raises(RetrievalError, match="schema index has not been refreshed"):
+        service.retrieve("students", user_id="user_3", dataset_id="dataset_3")
+
+
+def test_failed_refresh_preserves_previous_valid_index():
+    loader = Mock()
+    loader.load.return_value = SCHEMA
+    encoder = VectorEncoder()
+    service = RetrievalService(loader, encoder=encoder)
+
+    # First refresh succeeds
+    assert service.refresh() == 2
+    res_before = service.retrieve("students")
+    assert len(res_before) > 0
+
+    # Second refresh fails due to network error
+    loader.load.side_effect = SchemaConnectionError("database connection timeout")
+    with pytest.raises(SchemaConnectionError):
+        service.refresh()
+
+    # Previous index must remain intact and searchable!
+    res_after = service.retrieve("students")
+    assert len(res_after) == len(res_before)
+    assert res_after[0]["table_name"] == res_before[0]["table_name"]
+
+
+def test_empty_schema_refresh_fails_gracefully():
+    loader = Mock()
+    loader.load.return_value = {"schema": "public", "tables": []}
+    service = RetrievalService(loader)
+    with pytest.raises(RetrievalError, match="schema contains no tables to index"):
+        service.refresh()
+
+
+def test_junction_alone_attendance_expands_courses_and_students():
+    loader = Mock()
+    loader.load.return_value = FIVE_TABLE_SCHEMA
+
+    class AttendanceOnlyEncoder:
+        def encode(self, sentences, **kwargs):
+            table_keys = ["attendance", "courses", "students", "placements", "companies"]
+            vectors = []
+            for sentence in sentences:
+                text = sentence.lower()
+                vec = [0.0] * len(table_keys)
+                for i, key in enumerate(table_keys):
+                    if f"table: {key}" in text:
+                        vec[i] = 10.0
+                    elif key in text:
+                        vec[i] = 1.0
+                vectors.append(vec)
+            return np.asarray(vectors, dtype="float32")
+
+    service = RetrievalService(loader, encoder=AttendanceOnlyEncoder())
+    service.refresh()
+
+    context = service.retrieve_context(
+        question="attendance",
+        top_k=1,
+        max_bridge_tables=2,
+    )
+
+    table_names = [t["table_name"] for t in context["tables"]]
+    assert len(table_names) == 3
+    assert set(table_names) == {"attendance", "courses", "students"}
+
+    tables_by_name = {t["table_name"]: t for t in context["tables"]}
+    assert tables_by_name["attendance"]["is_bridge"] is False
+    assert tables_by_name["attendance"]["provenance"] == "semantic"
+    assert tables_by_name["attendance"]["score"] is not None
+
+    assert tables_by_name["courses"]["is_bridge"] is True
+    assert tables_by_name["courses"]["provenance"] == "relationship_expansion"
+    assert tables_by_name["courses"]["score"] is None
+
+    assert tables_by_name["students"]["is_bridge"] is True
+    assert tables_by_name["students"]["provenance"] == "relationship_expansion"
+    assert tables_by_name["students"]["score"] is None
+
+    assert context["join_conditions"] == [
+        "attendance.course_id = courses.id",
+        "attendance.student_id = students.id",
+    ]
+    assert context["allowed_tables"] == ["attendance", "courses", "students"]
+
+
+def test_junction_alone_placements_expands_companies_and_students():
+    loader = Mock()
+    loader.load.return_value = FIVE_TABLE_SCHEMA
+
+    class PlacementsOnlyEncoder:
+        def encode(self, sentences, **kwargs):
+            table_keys = ["placements", "companies", "students", "courses", "attendance"]
+            vectors = []
+            for sentence in sentences:
+                text = sentence.lower()
+                vec = [0.0] * len(table_keys)
+                for i, key in enumerate(table_keys):
+                    if f"table: {key}" in text:
+                        vec[i] = 10.0
+                    elif key in text:
+                        vec[i] = 1.0
+                vectors.append(vec)
+            return np.asarray(vectors, dtype="float32")
+
+    service = RetrievalService(loader, encoder=PlacementsOnlyEncoder())
+    service.refresh()
+
+    context = service.retrieve_context(
+        question="placements",
+        top_k=1,
+        max_bridge_tables=2,
+    )
+
+    table_names = [t["table_name"] for t in context["tables"]]
+    assert len(table_names) == 3
+    assert set(table_names) == {"placements", "companies", "students"}
+
+    tables_by_name = {t["table_name"]: t for t in context["tables"]}
+    assert tables_by_name["placements"]["is_bridge"] is False
+    assert tables_by_name["placements"]["provenance"] == "semantic"
+    assert tables_by_name["placements"]["score"] is not None
+
+    assert tables_by_name["companies"]["is_bridge"] is True
+    assert tables_by_name["companies"]["provenance"] == "relationship_expansion"
+    assert tables_by_name["companies"]["score"] is None
+
+    assert tables_by_name["students"]["is_bridge"] is True
+    assert tables_by_name["students"]["provenance"] == "relationship_expansion"
+    assert tables_by_name["students"]["score"] is None
+
+    assert context["join_conditions"] == [
+        "placements.company_id = companies.id",
+        "placements.student_id = students.id",
+    ]
+    assert context["allowed_tables"] == ["companies", "placements", "students"]
+
+
+def test_junction_alone_attendance_respects_single_bridge_limit():
+    loader = Mock()
+    loader.load.return_value = FIVE_TABLE_SCHEMA
+
+    class AttendanceOnlyEncoder:
+        def encode(self, sentences, **kwargs):
+            table_keys = ["attendance", "courses", "students", "placements", "companies"]
+            vectors = []
+            for sentence in sentences:
+                text = sentence.lower()
+                vec = [0.0] * len(table_keys)
+                for i, key in enumerate(table_keys):
+                    if f"table: {key}" in text:
+                        vec[i] = 10.0
+                    elif key in text:
+                        vec[i] = 1.0
+                vectors.append(vec)
+            return np.asarray(vectors, dtype="float32")
+
+    service = RetrievalService(loader, encoder=AttendanceOnlyEncoder())
+    service.refresh()
+
+    context = service.retrieve_context(
+        question="attendance",
+        top_k=1,
+        max_bridge_tables=1,
+    )
+
+    table_names = [t["table_name"] for t in context["tables"]]
+    assert len(table_names) == 2
+    # Deterministic tie-break chooses courses before students
+    assert table_names == ["attendance", "courses"]
+
+    bridge_tables = [t for t in context["tables"] if t["is_bridge"]]
+    assert len(bridge_tables) == 1
+    assert bridge_tables[0]["table_name"] == "courses"
+    assert bridge_tables[0]["provenance"] == "relationship_expansion"
+
+    assert context["join_conditions"] == ["attendance.course_id = courses.id"]
+    assert context["allowed_tables"] == ["attendance", "courses"]
+def test_junction_alone_attendance_respects_zero_bridge_limit():
+    loader = Mock()
+    loader.load.return_value = FIVE_TABLE_SCHEMA
+
+    class AttendanceOnlyEncoder:
+        def encode(self, sentences, **kwargs):
+            table_keys = ["attendance", "courses", "students", "placements", "companies"]
+            vectors = []
+            for sentence in sentences:
+                text = sentence.lower()
+                vec = [0.0] * len(table_keys)
+                for i, key in enumerate(table_keys):
+                    if f"table: {key}" in text:
+                        vec[i] = 10.0
+                    elif key in text:
+                        vec[i] = 1.0
+                vectors.append(vec)
+            return np.asarray(vectors, dtype="float32")
+
+    service = RetrievalService(loader, encoder=AttendanceOnlyEncoder())
+    service.refresh()
+
+    context = service.retrieve_context(
+        question="attendance",
+        top_k=1,
+        max_bridge_tables=0,
+    )
+
+    table_names = [t["table_name"] for t in context["tables"]]
+    assert table_names == ["attendance"]
+    assert context["join_conditions"] == []
+    assert context["allowed_tables"] == ["attendance"]
+
+
+def test_parent_alone_courses_expands_query_relevant_attendance():
+    loader = Mock()
+    loader.load.return_value = FIVE_TABLE_SCHEMA
+
+    class CoursesOnlyEncoder:
+        def encode(self, sentences, **kwargs):
+            table_keys = ["courses", "attendance", "students", "placements", "companies"]
+            vectors = []
+            for sentence in sentences:
+                text = sentence.lower()
+                vec = [0.0] * len(table_keys)
+                for i, key in enumerate(table_keys):
+                    if f"table: {key}" in text:
+                        vec[i] = 10.0
+                    elif key == "courses" and ("course" in text or "courses" in text):
+                        vec[i] = 2.0
+                    elif key in text:
+                        vec[i] = 1.0
+                vectors.append(vec)
+            return np.asarray(vectors, dtype="float32")
+
+    service = RetrievalService(loader, encoder=CoursesOnlyEncoder())
+    service.refresh()
+
+    context = service.retrieve_context(
+        question="Show attendance for each course.",
+        top_k=1,
+        max_bridge_tables=2,
+    )
+
+    table_names = [t["table_name"] for t in context["tables"]]
+    assert len(table_names) == 3
+    assert set(table_names) == {"courses", "attendance", "students"}
+
+    tables_by_name = {t["table_name"]: t for t in context["tables"]}
+    assert tables_by_name["courses"]["is_bridge"] is False
+    assert tables_by_name["courses"]["provenance"] == "semantic"
+    assert tables_by_name["courses"]["score"] is not None
+
+    assert tables_by_name["attendance"]["is_bridge"] is True
+    assert tables_by_name["attendance"]["provenance"] == "relationship_expansion"
+    assert tables_by_name["attendance"]["score"] is None
+
+    assert tables_by_name["students"]["is_bridge"] is True
+    assert tables_by_name["students"]["provenance"] == "relationship_expansion"
+    assert tables_by_name["students"]["score"] is None
+
+    assert context["join_conditions"] == [
+        "attendance.course_id = courses.id",
+        "attendance.student_id = students.id",
+    ]
+    assert context["allowed_tables"] == ["attendance", "courses", "students"]
+
+
+def test_parent_alone_courses_does_not_expand_when_query_irrelevant():
+    loader = Mock()
+    loader.load.return_value = FIVE_TABLE_SCHEMA
+
+    class CoursesOnlyEncoder:
+        def encode(self, sentences, **kwargs):
+            table_keys = ["courses", "attendance", "students", "placements", "companies"]
+            vectors = []
+            for sentence in sentences:
+                text = sentence.lower()
+                vec = [0.0] * len(table_keys)
+                for i, key in enumerate(table_keys):
+                    if f"table: {key}" in text:
+                        vec[i] = 10.0
+                    elif key == "courses" and ("course" in text or "courses" in text):
+                        vec[i] = 2.0
+                    elif key in text:
+                        vec[i] = 1.0
+                vectors.append(vec)
+            return np.asarray(vectors, dtype="float32")
+
+    service = RetrievalService(loader, encoder=CoursesOnlyEncoder())
+    service.refresh()
+
+    context = service.retrieve_context(
+        question="Show all courses with credits > 3",
+        top_k=1,
+        max_bridge_tables=2,
+    )
+
+    table_names = [t["table_name"] for t in context["tables"]]
+    assert table_names == ["courses"]
+    assert context["join_conditions"] == []
+    assert context["allowed_tables"] == ["courses"]
+
+
+def test_parent_alone_courses_with_single_bridge_limit():
+    loader = Mock()
+    loader.load.return_value = FIVE_TABLE_SCHEMA
+
+    class CoursesOnlyEncoder:
+        def encode(self, sentences, **kwargs):
+            table_keys = ["courses", "attendance", "students", "placements", "companies"]
+            vectors = []
+            for sentence in sentences:
+                text = sentence.lower()
+                vec = [0.0] * len(table_keys)
+                for i, key in enumerate(table_keys):
+                    if f"table: {key}" in text:
+                        vec[i] = 10.0
+                    elif key == "courses" and ("course" in text or "courses" in text):
+                        vec[i] = 2.0
+                    elif key in text:
+                        vec[i] = 1.0
+                vectors.append(vec)
+            return np.asarray(vectors, dtype="float32")
+
+    service = RetrievalService(loader, encoder=CoursesOnlyEncoder())
+    service.refresh()
+
+    context = service.retrieve_context(
+        question="Show attendance for each course.",
+        top_k=1,
+        max_bridge_tables=1,
+    )
+
+    table_names = [t["table_name"] for t in context["tables"]]
+    assert table_names == ["courses", "attendance"]
+    assert context["join_conditions"] == ["attendance.course_id = courses.id"]
+    assert context["allowed_tables"] == ["attendance", "courses"]

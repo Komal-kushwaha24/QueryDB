@@ -24,6 +24,7 @@ def build_schema_documents(schema_payload: dict[str, Any]) -> list[SchemaDocumen
 
     # Pass 1: Collect incoming foreign-key references for each table
     incoming_by_table: dict[str, list[str]] = {table["name"]: [] for table in tables}
+    structured_incoming_by_table: dict[str, list[dict[str, str]]] = {table["name"]: [] for table in tables}
     for table in tables:
         source_table = table["name"]
         for foreign_key in table.get("foreignKeys", []) or []:
@@ -32,16 +33,27 @@ def build_schema_documents(schema_payload: dict[str, Any]) -> list[SchemaDocumen
             ref_col = foreign_key.get("referencedColumn")
             if ref_table and source_col and ref_col:
                 rel = f"{source_table}.{source_col} references {ref_table}.{ref_col}"
+                structured_fk = {
+                    "sourceTable": source_table,
+                    "sourceColumn": source_col,
+                    "referencedTable": ref_table,
+                    "referencedColumn": ref_col,
+                }
                 if ref_table in incoming_by_table:
                     incoming_by_table[ref_table].append(rel)
+                    structured_incoming_by_table[ref_table].append(structured_fk)
                 else:
                     incoming_by_table[ref_table] = [rel]
+                    structured_incoming_by_table[ref_table] = [structured_fk]
 
     # Pass 2: Build SchemaDocument for each table
     for table in tables:
         table_metadata = deepcopy(table)
         table_metadata["schema"] = schema_name
         table_name = table["name"]
+        table_metadata["incomingForeignKeys"] = deepcopy(
+            structured_incoming_by_table.get(table_name, [])
+        )
         column_descriptions = []
         for column in table.get("columns", []) or []:
             qualifiers = []
