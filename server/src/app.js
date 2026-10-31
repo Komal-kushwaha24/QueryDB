@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import pool from './config/database.js';
+import queryRoutes from './routes/queryRoutes.js';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -117,13 +118,14 @@ app.get('/api/schema', async (_request, response) => {
 
     response.json({ schema: 'public', tables });
   } catch (error) {
-    console.error('Schema retrieval failed:', error.message);
     response.status(503).json({
       status: 'error',
       message: 'Unable to retrieve the database schema.'
     });
   }
 });
+
+app.use('/api', queryRoutes);
 
 app.use((_request, response) => {
   response.status(404).json({ error: 'Route not found' });
