@@ -19,6 +19,10 @@ QueryDB is a college project that will let users ask questions about PostgreSQL 
 - `ai-service/`: separate FastAPI service with future RAG, ambiguity, text-to-SQL, and SQL-safety modules.
 - `database/`: future PostgreSQL schema and seed scripts.
 - `evaluation/`: datasets and evaluation materials for later development.
+
+## Schema-aware RAG
+
+The AI service retrieves live table metadata from the Express `/api/schema` endpoint, builds one retrieval document per table, embeds documents with the configured Sentence Transformers model, and searches them with FAISS. See [Schema-aware RAG](docs/rag.md) for loading, refresh, retrieval, and test instructions.
 - `docs/`: project architecture and design documentation.
 
 

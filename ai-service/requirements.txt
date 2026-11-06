@@ -4,3 +4,6 @@ pydantic
 sentence-transformers
 faiss-cpu
 sqlglot
+google-genai
+python-dotenv
+pytest
