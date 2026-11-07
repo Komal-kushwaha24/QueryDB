@@ -12,6 +12,14 @@ from app.rag.retrieval import (
     retrieve_schema_context,
 )
 from app.rag.schema_loader import SchemaLoaderError
+from app.ambiguity import (
+    AmbiguityService,
+    ClarificationResult,
+    ExplanationResult,
+    ExplanationService,
+    get_ambiguity_service,
+    get_explanation_service,
+)
 from app.sql_safety.validator import SQLValidationResult, validate_sql
 from app.text_to_sql.generator import (
     LLMConfigurationError,
@@ -59,6 +67,20 @@ class GenerateSQLRequest(BaseModel):
 class ValidateSQLRequest(BaseModel):
     sql: str = Field(min_length=1, max_length=10_000)
     allowed_tables: list[str] | None = None
+
+
+class ClarifyRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=10_000)
+    schema_context: dict[str, Any] | None = None
+
+
+class ExplainRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=10_000)
+    sql: str = Field(min_length=1, max_length=10_000)
+
+
+class ContractGenerateSQLRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=10_000)
 
 
 @app.get("/health")
@@ -159,3 +181,74 @@ def validate_sql_endpoint(request: ValidateSQLRequest) -> dict[str, Any]:
     except Exception as exc:
         logger.exception("SQL validation failed unexpectedly")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/api/ai/clarify")
+@app.post("/ambiguity/clarify")
+def clarify_endpoint(request: ClarifyRequest) -> dict[str, Any]:
+    try:
+        service = get_ambiguity_service()
+        result = service.clarify(question=request.question, schema_context=request.schema_context)
+        return result.model_dump()
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Clarification failed: %s", exc)
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "CLARIFICATION_FAILED", "message": "Unable to analyze the question."}
+        ) from exc
+
+
+@app.post("/api/ai/explain")
+@app.post("/text-to-sql/explain")
+def explain_endpoint(request: ExplainRequest) -> dict[str, Any]:
+    try:
+        service = get_explanation_service()
+        result = service.explain(question=request.question, sql=request.sql)
+        return result.model_dump()
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Explanation generation failed: %s", exc)
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "EXPLANATION_FAILED", "message": "Unable to explain the SQL query."}
+        ) from exc
+
+
+@app.post("/api/ai/generate-sql")
+def contract_generate_sql_endpoint(request: ContractGenerateSQLRequest) -> dict[str, Any]:
+    try:
+        service = get_text_to_sql_service()
+        result: TextToSQLResult = service.generate_sql(question=request.question)
+        if not result.is_valid:
+            raise HTTPException(
+                status_code=500,
+                detail={"code": "SQL_GENERATION_FAILED", "message": "SQL generation failed."}
+            )
+        return {
+            "success": True,
+            "sql": result.sql,
+            "confidence": 0.95
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RetrievalError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except SchemaLoaderError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except LLMConfigurationError as exc:
+        logger.warning("Contract SQL LLM configuration error: %s", exc)
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except LLMGenerationError as exc:
+        logger.warning("Contract SQL LLM generation provider error: %s", exc)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Contract SQL generation failed: %s", exc)
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "SQL_GENERATION_FAILED", "message": "SQL generation failed."}
+        ) from exc

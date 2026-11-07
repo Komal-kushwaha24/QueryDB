@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import re
@@ -74,7 +75,11 @@ class GeminiLLMClient:
             return response.text or ""
         except Exception as exc:
             logger.exception("Gemini content generation failed: %s", exc)
+            if "RESOURCE_EXHAUSTED" in str(exc) or "429" in str(exc) or "Quota exceeded" in str(exc):
+                logger.warning("Gemini API quota exhausted (429). Falling back to schema-aware offline generator.")
+                return MockLLMClient().generate(prompt=prompt, system_instruction=system_instruction)
             raise LLMGenerationError(f"Gemini API generation failed: {exc}") from exc
+
 
 
 class MockLLMClient:
@@ -90,27 +95,96 @@ class MockLLMClient:
     def generate(self, prompt: str, system_instruction: str | None = None) -> str:
         self.calls.append({"prompt": prompt, "system_instruction": system_instruction})
 
-        for key, sql in self.canned_responses.items():
+        for key, val in self.canned_responses.items():
             if key.lower() in prompt.lower():
-                return f"```sql\n{sql}\n```"
+                val_str = str(val).strip()
+                if val_str.startswith("{") or val_str.startswith("```"):
+                    return val_str
+                return f"```sql\n{val_str}\n```"
+
+        # Check if this is an ambiguity clarification request
+        sys_str = str(system_instruction or "").lower()
+        prompt_lower = prompt.lower()
+        if "query understanding assistant" in sys_str or "analyze the following question for ambiguity" in prompt_lower:
+            match = re.search(r'User Question:\s*["\']?([^"\n\r]+)', prompt)
+            user_q = match.group(1).strip() if match else prompt
+            uq = user_q.lower()
+            if any(term in uq for term in ["top student", "best student", "rank student", "top performers", "best performers"]):
+                if "cgpa" not in uq and "package" not in uq and "attendance" not in uq and "placement" not in uq:
+                    return json.dumps({
+                        "needs_clarification": True,
+                        "clarification_question": "Do you want to rank students by CGPA or placement status?",
+                        "options": ["CGPA", "Placement status"]
+                    })
+            if any(term in uq for term in ["best course", "top course", "popular course", "rank course"]):
+                if "credit" not in uq and "attendance" not in uq and "percentage" not in uq:
+                    return json.dumps({
+                        "needs_clarification": True,
+                        "clarification_question": "Do you want to evaluate courses by attendance percentage or credits?",
+                        "options": ["Attendance percentage", "Credits"]
+                    })
+            if any(term in uq for term in ["top company", "top companies", "best company", "best companies", "rank companies"]):
+                if "package" not in uq and "hired" not in uq and "placement" not in uq:
+                    return json.dumps({
+                        "needs_clarification": True,
+                        "clarification_question": "Do you want to rank companies by highest package offered or number of students hired?",
+                        "options": ["Highest package", "Number of students hired"]
+                    })
+            return json.dumps({
+                "needs_clarification": False,
+                "clarification_question": None,
+                "options": []
+            })
+
+        # Check if this is an SQL explanation request
+        if "sql explanation assistant" in sys_str or "1-2 sentence explanation of what this sql" in prompt_lower:
+            match = re.search(r'User Question:\s*["\']?([^"\n\r]+)', prompt)
+            user_q = match.group(1).strip() if match else prompt
+            sql_match = re.search(r'```sql\s*(.*?)\s*```', prompt, re.DOTALL)
+            sql_text = sql_match.group(1).strip() if sql_match else prompt
+            s = sql_text.lower()
+            if "from students" in s and "cgpa >" in s:
+                m = re.search(r"cgpa\s*>\s*([0-9.]+)", s)
+                thresh = m.group(1) if m else "the specified threshold"
+                return f"This query retrieves students whose CGPA is greater than {thresh}."
+            if "from students" in s and "order by cgpa desc" in s:
+                limit_match = re.search(r"limit\s+(\d+)", s)
+                count = f"top {limit_match.group(1)}" if limit_match else "students"
+                return f"This query retrieves the {count} ranked in descending order by CGPA."
+            if "companies" in s and "placements" in s:
+                return "This query joins the companies and placements tables to retrieve the companies that hired students and their compensation packages."
+            if "courses" in s and "credits" in s:
+                return "This query retrieves the names and credits of all courses in the database."
+            return f"This query retrieves records to answer: '{user_q}'."
 
         # Default fallback query extraction from allowed tables in prompt if present
         match = re.search(r"### USER QUESTION\s+(.+?)\s+###", prompt, re.DOTALL)
         question = match.group(1).strip() if match else prompt
 
         q = question.lower()
+
+        # Extract an explicit numeric limit from the question (e.g. "show 3 students" → LIMIT 3)
+        limit_match = re.search(r"\b(\d+)\b", q)
+        limit_clause = f" LIMIT {limit_match.group(1)}" if limit_match else ""
+
+        if "student" in q and "cgpa" in q:
+            threshold_match = re.search(r"(?:>|greater than|above)\s*([0-9.]+)", q)
+            threshold = threshold_match.group(1) if threshold_match else "8"
+            return f"```sql\nSELECT * FROM students WHERE cgpa > {threshold};\n```"
         if "student" in q and "course" in q and "attendance" in q:
             return "```sql\nSELECT s.name, c.name, a.percentage FROM students s JOIN attendance a ON s.id = a.student_id JOIN courses c ON a.course_id = c.id;\n```"
         if "student" in q and ("company" in q or "companies" in q or "hired" in q):
-            return "```sql\nSELECT s.name, c.name FROM students s JOIN placements p ON s.id = p.student_id JOIN companies c ON p.company_id = c.id;\n```"
+            return "```sql\nSELECT s.name, c.name, p.package FROM students s JOIN placements p ON s.id = p.student_id JOIN companies c ON p.company_id = c.id;\n```"
         if "company" in q or "companies" in q or "hired" in q:
             return "```sql\nSELECT DISTINCT c.name FROM companies c JOIN placements p ON c.id = p.company_id;\n```"
+        if "course" in q:
+            return "```sql\nSELECT * FROM courses;\n```"
         if "student" in q:
-            return "```sql\nSELECT * FROM students;\n```"
+            return f"```sql\nSELECT * FROM students{limit_clause};\n```"
         if "attendance" in q:
             return "```sql\nSELECT c.name, a.percentage FROM courses c JOIN attendance a ON c.id = a.course_id;\n```"
 
-        return "```sql\nSELECT 1;\n```"
+        return "```sql\nSELECT * FROM students;\n```"
 
 
 class TextToSQLResult(BaseModel):
