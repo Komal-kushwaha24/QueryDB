@@ -1,6 +1,7 @@
 import logging
 from typing import Any
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
@@ -11,6 +12,15 @@ from app.rag.retrieval import (
     retrieve_schema_context,
 )
 from app.rag.schema_loader import SchemaLoaderError
+from app.sql_safety.validator import SQLValidationResult, validate_sql
+from app.text_to_sql.generator import (
+    LLMConfigurationError,
+    LLMGenerationError,
+    TextToSQLResult,
+    get_text_to_sql_service,
+)
+
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -36,6 +46,19 @@ class RetrieveContextRequest(BaseModel):
     max_bridge_tables: int = Field(default=2, ge=0, le=10)
     user_id: str = Field(default="anonymous", min_length=1, max_length=256)
     dataset_id: str = Field(default="default", min_length=1, max_length=256)
+
+
+class GenerateSQLRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=10_000)
+    top_k: int = Field(default=3, gt=0, le=100)
+    max_bridge_tables: int = Field(default=2, ge=0, le=10)
+    user_id: str = Field(default="anonymous", min_length=1, max_length=256)
+    dataset_id: str = Field(default="default", min_length=1, max_length=256)
+
+
+class ValidateSQLRequest(BaseModel):
+    sql: str = Field(min_length=1, max_length=10_000)
+    allowed_tables: list[str] | None = None
 
 
 @app.get("/health")
@@ -97,3 +120,42 @@ def retrieve_rag_context(request: RetrieveContextRequest) -> dict[str, Any]:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except SchemaLoaderError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post("/sql/generate")
+def generate_sql_endpoint(request: GenerateSQLRequest) -> dict[str, Any]:
+    try:
+        service = get_text_to_sql_service()
+        result: TextToSQLResult = service.generate_sql(
+            question=request.question,
+            user_id=request.user_id,
+            dataset_id=request.dataset_id,
+            top_k=request.top_k,
+            max_bridge_tables=request.max_bridge_tables,
+        )
+        return result.model_dump()
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except LLMConfigurationError as exc:
+        logger.warning("LLM generation configuration error: %s", exc)
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except LLMGenerationError as exc:
+        logger.warning("LLM generation provider error: %s", exc)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except RetrievalError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except SchemaLoaderError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post("/sql/validate")
+def validate_sql_endpoint(request: ValidateSQLRequest) -> dict[str, Any]:
+    try:
+        result: SQLValidationResult = validate_sql(
+            sql=request.sql,
+            allowed_tables=request.allowed_tables,
+        )
+        return result.model_dump()
+    except Exception as exc:
+        logger.exception("SQL validation failed unexpectedly")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
