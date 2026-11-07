@@ -105,3 +105,110 @@ export async function generateSQL(question, options = {}) {
     promptContext: data.prompt_context || ''
   };
 }
+
+/**
+ * Calls the FastAPI AI service to check whether a question requires clarification.
+ *
+ * @param {string} question - The user's natural language question.
+ * @param {object} [options]
+ * @param {number} [options.timeout=10000]
+ * @returns {Promise<{
+ *   success: boolean,
+ *   needsClarification: boolean,
+ *   clarificationQuestion: string | null,
+ *   options: string[]
+ * }>}
+ */
+export async function clarifyQuestion(question, options = {}) {
+  const baseUrl = process.env.AI_SERVICE_URL || DEFAULT_AI_SERVICE_URL;
+  const endpoint = `${baseUrl.replace(/\/+$/, '')}/api/ai/clarify`;
+  const timeoutMs = options.timeout || 10000;
+
+  let response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, schema_context: options.schemaContext || {} }),
+      signal: AbortSignal.timeout(timeoutMs)
+    });
+  } catch (error) {
+    if (error.name === 'TimeoutError') {
+      const err = new Error(`AI clarification request timed out after ${timeoutMs}ms.`);
+      err.code = 'AI_SERVICE_TIMEOUT';
+      err.statusCode = 504;
+      throw err;
+    }
+    const err = new Error(`Unable to reach AI service at ${baseUrl}: ${error.message}`);
+    err.code = 'AI_SERVICE_UNAVAILABLE';
+    err.statusCode = 502;
+    throw err;
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const err = new Error(errorData.detail?.message || errorData.detail || 'Clarification service failed.');
+    err.statusCode = response.status;
+    throw err;
+  }
+
+  const data = await response.json();
+  return {
+    success: Boolean(data.success),
+    needsClarification: Boolean(data.needs_clarification),
+    clarificationQuestion: data.clarification_question || null,
+    options: data.options || []
+  };
+}
+
+/**
+ * Calls the FastAPI AI service to explain generated SQL.
+ *
+ * @param {string} question - The user's question.
+ * @param {string} sql - The executed SQL statement.
+ * @param {object} [options]
+ * @param {number} [options.timeout=10000]
+ * @returns {Promise<{
+ *   success: boolean,
+ *   explanation: string
+ * }>}
+ */
+export async function explainSQL(question, sql, options = {}) {
+  const baseUrl = process.env.AI_SERVICE_URL || DEFAULT_AI_SERVICE_URL;
+  const endpoint = `${baseUrl.replace(/\/+$/, '')}/api/ai/explain`;
+  const timeoutMs = options.timeout || 10000;
+
+  let response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, sql }),
+      signal: AbortSignal.timeout(timeoutMs)
+    });
+  } catch (error) {
+    if (error.name === 'TimeoutError') {
+      const err = new Error(`AI explanation request timed out after ${timeoutMs}ms.`);
+      err.code = 'AI_SERVICE_TIMEOUT';
+      err.statusCode = 504;
+      throw err;
+    }
+    const err = new Error(`Unable to reach AI service at ${baseUrl}: ${error.message}`);
+    err.code = 'AI_SERVICE_UNAVAILABLE';
+    err.statusCode = 502;
+    throw err;
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const err = new Error(errorData.detail?.message || errorData.detail || 'Explanation service failed.');
+    err.statusCode = response.status;
+    throw err;
+  }
+
+  const data = await response.json();
+  return {
+    success: Boolean(data.success),
+    explanation: data.explanation || ''
+  };
+}

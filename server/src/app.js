@@ -136,17 +136,34 @@ app.use((error, _request, response, _next) => {
   response.status(500).json({ error: 'Internal server error' });
 });
 
-const server = app.listen(port, () => {
-  console.log(`QueryDB API listening on port ${port}`);
-});
+let server;
+if (process.env.NODE_ENV !== 'test') {
+  server = app.listen(port, () => {
+    console.log(`QueryDB API listening on port ${port}`);
+  }).on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.log(`Port ${port} is already in use; assuming existing server instance.`);
+    } else {
+      throw err;
+    }
+  });
+}
 
 const shutdown = async (signal) => {
   console.log(`${signal} received, shutting down gracefully`);
-  server.close(async () => {
+  if (server) {
+    server.close(async () => {
+      await pool.end();
+      process.exit(0);
+    });
+  } else {
     await pool.end();
     process.exit(0);
-  });
+  }
 };
 
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+export { app, server };
+export default app;
