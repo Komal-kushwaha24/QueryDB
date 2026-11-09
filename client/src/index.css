@@ -1,1 +1,112 @@
+/* Hallmark · shape: Stat-Led · genre: modern-minimal · theme: Dusk (deal 1/3, seed querydb-natural-language-text-f3af·d67aaf6a·2026-11-07·r0) · job: try · draw: 52756c
+ * hero: Settled · nav: search-led bar · footer: colophon block · imagery: the product · signature: query-to-sql-pipeline · dusk: fog/periwinkle-apricot/glass
+ * axes: dark/grotesk-sans/cool · posture: committed · contrast: pass · fold: pass · v2.0.0 */
+/* Hallmark · pre-emit critique: P9 H9 E9 S9 R9 V9 · weakest: imagery, product in smoked glass with live schema */
 @import "tailwindcss";
+@import "./tokens.css";
+@import "./base.css";
+
+/* ─── Dusk Theme Classes ─────────────────────────────────── */
+html, body {
+  overflow-x: clip;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+}
+
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: var(--tracking-display);
+  font-weight: var(--display-weight);
+}
+
+.font-mono-code {
+  font-family: var(--font-mono);
+}
+
+/* Smoked surface console */
+.glass-panel {
+  background-color: var(--color-paper-2);
+  color: var(--color-ink);
+  border: 1px solid var(--color-rule);
+}
+
+.surface-card {
+  background-color: var(--color-paper-2);
+  color: var(--color-ink);
+  border: 1px solid var(--color-rule);
+}
+
+.surface-elevated {
+  background-color: var(--color-paper-3);
+  color: var(--color-ink);
+  border: 1px solid var(--color-rule);
+}
+
+/* Primary pill button */
+.btn-primary {
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-weight: 500;
+  box-shadow: inset 0 1px 0 var(--color-primary-glow);
+  transition-property: background-color, transform, box-shadow;
+  transition-duration: var(--dur-short);
+  transition-timing-function: var(--ease-out);
+}
+
+.btn-primary:hover {
+  background-color: var(--color-accent-hi);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+.btn-primary:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* Secondary outline button */
+.btn-ghost {
+  background-color: var(--color-paper-3);
+  color: var(--color-ink);
+  border: 1px solid var(--color-rule);
+  font-weight: 500;
+  transition-property: background-color, color, border-color, transform;
+  transition-duration: var(--dur-short);
+  transition-timing-function: var(--ease-out);
+}
+
+.btn-ghost:hover {
+  background-color: var(--color-paper-2);
+  color: var(--color-light);
+  border-color: var(--color-muted);
+  transform: translateY(-1px);
+}
+
+.btn-ghost:active {
+  transform: scale(0.98);
+}
+
+.btn-ghost:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* Code block container */
+.code-container {
+  background-color: var(--color-paper-3);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  border: 1px solid var(--color-rule);
+}
+
+/* Custom code syntax highlights using tokens */
+.token-keyword { color: var(--syntax-keyword); font-weight: 600; }
+.token-function { color: var(--syntax-func); }
+.token-string { color: var(--syntax-string); }
+.token-number { color: var(--syntax-number); }
+.token-operator { color: var(--color-muted); }
+.token-comment { color: var(--color-muted); font-style: italic; }
