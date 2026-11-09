@@ -35,6 +35,7 @@ test.before(async () => {
   }
 
   if (!aiRunning) {
+    process.env.AI_SERVICE_URL = 'http://127.0.0.1:8001';
     mockAiServer = http.createServer((req, res) => {
       let body = '';
       req.on('data', (chunk) => { body += chunk; });
@@ -161,7 +162,7 @@ test('API POST /api/query end-to-end question execution returns real rows and ex
   const res = await fetch('http://localhost:3000/api/query', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question: 'Show 3 students.' })
+    body: JSON.stringify({ question: 'Show 3 students.', skipClarification: true })
   });
 
   assert.equal(res.status, 200);

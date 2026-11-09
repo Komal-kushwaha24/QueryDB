@@ -1,10 +1,48 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DATABASE_SCHEMA } from '../data/playgroundData';
+import { fetchSchema } from '../services/api';
 
 export default function SchemaExplorer() {
+  const [schemaData, setSchemaData] = useState(DATABASE_SCHEMA);
+  const [isLiveSchema, setIsLiveSchema] = useState(false);
   const [activeTableKey, setActiveTableKey] = useState('placements');
-  const activeTable = DATABASE_SCHEMA[activeTableKey];
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchSchema()
+      .then((data) => {
+        if (!isMounted || !data?.tables?.length) return;
+        const merged = { ...DATABASE_SCHEMA };
+        data.tables.forEach((t) => {
+          if (merged[t.name]) {
+            merged[t.name] = {
+              ...merged[t.name],
+              columns: t.columns.map((c) => ({
+                name: c.name,
+                type: c.dataType,
+                isPk: c.isPrimaryKey,
+                isFk: t.foreignKeys?.some((fk) => fk.sourceColumn === c.name) || false,
+                references: t.foreignKeys?.find((fk) => fk.sourceColumn === c.name)
+                  ? `${t.foreignKeys.find((fk) => fk.sourceColumn === c.name).referencedTable}.${t.foreignKeys.find((fk) => fk.sourceColumn === c.name).referencedColumn}`
+                  : undefined,
+              })),
+            };
+          }
+        });
+        setSchemaData(merged);
+        setIsLiveSchema(true);
+      })
+      .catch(() => {
+        // Fallback to static schema seamlessly when offline
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const activeTable = schemaData[activeTableKey] || schemaData.students || Object.values(schemaData)[0];
 
   return (
     <section id="schema-explorer" className="py-20 px-4 sm:px-6 lg:px-8 border-t border-[var(--color-rule)] bg-[var(--color-paper)]">
@@ -39,11 +77,11 @@ export default function SchemaExplorer() {
             {/* Table List Sidebar */}
             <div className="md:col-span-4 p-5 sm:p-6 bg-[var(--color-paper)]">
               <span className="text-xs font-medium text-[var(--color-muted)] block mb-3">
-                Database tables (5 indexed):
+                Database tables ({Object.keys(schemaData).length} {isLiveSchema ? 'live connected' : 'indexed'}):
               </span>
               <div className="space-y-2">
-                {Object.keys(DATABASE_SCHEMA).map((key) => {
-                  const table = DATABASE_SCHEMA[key];
+                {Object.keys(schemaData).map((key) => {
+                  const table = schemaData[key];
                   const isSelected = activeTableKey === key;
                   return (
                     <button
@@ -101,7 +139,7 @@ export default function SchemaExplorer() {
                           {activeTable.name}
                         </h3>
                         <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--color-paper-3)] text-[var(--color-accent)] border border-[var(--color-rule)]">
-                          Verified DDL
+                          {isLiveSchema ? 'Live PostgreSQL DDL' : 'Verified DDL'}
                         </span>
                       </div>
                       <p className="text-xs text-[var(--color-muted)] mt-1">

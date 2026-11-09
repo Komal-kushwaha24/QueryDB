@@ -356,6 +356,14 @@ class RetrievalService:
         scope = self._scope(user_id, dataset_id)
         with self._lock:
             index = self._indexes.get(scope)
+        if index is None and user_id == "anonymous" and dataset_id == "default":
+            try:
+                self.refresh(user_id=user_id, dataset_id=dataset_id)
+                with self._lock:
+                    index = self._indexes.get(scope)
+            except Exception as exc:
+                logger.warning("Auto-refresh failed during retrieve: %s", exc)
+
         if index is None:
             raise RetrievalError("schema index has not been refreshed for this user and dataset")
 
@@ -391,6 +399,16 @@ class RetrievalService:
             index = self._indexes.get(scope)
             schema_payload = self._schemas.get(scope)
             doc_map = self._documents.get(scope)
+
+        if (index is None or schema_payload is None or doc_map is None) and user_id == "anonymous" and dataset_id == "default":
+            try:
+                self.refresh(user_id=user_id, dataset_id=dataset_id)
+                with self._lock:
+                    index = self._indexes.get(scope)
+                    schema_payload = self._schemas.get(scope)
+                    doc_map = self._documents.get(scope)
+            except Exception as exc:
+                logger.warning("Auto-refresh failed during retrieve_context: %s", exc)
 
         if index is None or schema_payload is None or doc_map is None:
             raise RetrievalError("schema index has not been refreshed for this user and dataset")

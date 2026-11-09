@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 from typing import Any
 
 from dotenv import load_dotenv
@@ -33,7 +34,17 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="QueryDB AI Service")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    try:
+        count = refresh_schema()
+        logger.info("Startup schema indexing succeeded with %s tables", count)
+    except Exception as exc:
+        logger.warning("Startup schema indexing skipped/deferred: %s", exc)
+    yield
+
+
+app = FastAPI(title="QueryDB AI Service", lifespan=lifespan)
 
 
 class RefreshRequest(BaseModel):
