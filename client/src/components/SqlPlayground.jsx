@@ -163,37 +163,34 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
               <polyline points="16 18 22 12 16 6" />
               <polyline points="8 6 2 12 8 18" />
             </svg>
-            <span>{isDedicatedPage ? 'Dedicated SQL generation workspace' : 'Interactive text-to-SQL workbench'}</span>
+            <span>Interactive SQL Studio</span>
           </div>
 
           <h2
             className="font-display font-semibold text-[var(--color-ink)] mb-3 tracking-tight leading-tight"
             style={{ fontSize: 'clamp(1.75rem, 2.5vw + 0.5rem, 2.5rem)', textWrap: 'balance' }}
           >
-            {isDedicatedPage ? 'Ask your database anything' : 'Schema-aware SQL generation in real time'}
+            Ask your database in plain English
           </h2>
 
           <p
             className="text-[var(--color-muted)] leading-relaxed"
-            style={{ fontSize: 'var(--text-lead)', maxWidth: '56ch', margin: '0 auto' }}
+            style={{ fontSize: 'var(--text-lead)', maxWidth: '52ch', margin: '0 auto' }}
           >
-            {isDedicatedPage
-              ? 'Type a custom question or pick a scenario below. QueryDB resolves ambiguity, grounds queries in live PostgreSQL DDL, and prevents hallucinations.'
-              : 'Test natural language queries against our verified student database schema. Inspect SQL syntax, execution safety guards, and live tabular output.'
-            }
+            Type any question or pick a sample below. QueryDB grounds queries in your live PostgreSQL schema and enforces read-only safety.
           </p>
         </div>
 
         {/* Workbench Frame */}
-        <div className="surface-card rounded-2xl border border-[var(--color-rule)] overflow-hidden">
+        <div className="surface-card rounded-2xl border border-[var(--color-rule)] overflow-hidden shadow-2xl shadow-black/40">
           {/* Top Control Bar */}
-          <div className="px-5 sm:px-6 py-3.5 border-b border-[var(--color-rule)] bg-[var(--color-paper-2)] flex flex-wrap items-center justify-between gap-4">
+          <div className="px-5 sm:px-6 py-3 border-b border-[var(--color-rule)] bg-[var(--color-paper-2)] flex flex-wrap items-center justify-between gap-4">
             {/* Dialect Selector */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-medium text-[var(--color-muted)]">Active dialect:</span>
-              <div className="flex items-center gap-1 bg-[var(--color-paper-3)] p-1 rounded-lg border border-[var(--color-rule)]">
+            <div className="flex items-center gap-2.5">
+              <span className="text-xs font-medium text-[var(--color-muted)]">Dialect:</span>
+              <div className="flex items-center gap-1 bg-[var(--color-paper-3)] p-0.5 rounded-lg border border-[var(--color-rule)]">
                 {[
-                  { name: 'PostgreSQL 16', tag: 'Active' },
+                  { name: 'PostgreSQL 16', tag: 'Live' },
                   { name: 'MySQL 8.0', tag: 'Preview' },
                   { name: 'Snowflake', tag: 'Preview' },
                 ].map((item) => (
@@ -202,15 +199,15 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
                     type="button"
                     onClick={() => setSelectedDialect(item.name)}
                     className={`
-                      px-2.5 py-1 rounded-md text-xs font-medium transition-colors duration-150 cursor-pointer inline-flex items-center gap-1.5
+                      px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-150 cursor-pointer inline-flex items-center gap-1.5
                       ${selectedDialect === item.name
-                        ? 'bg-[var(--color-accent)] text-[var(--color-accent-ink)]'
+                        ? 'bg-[var(--color-accent)] text-[var(--color-accent-ink)] shadow-sm'
                         : 'text-[var(--color-muted)] hover:text-[var(--color-ink)]'
                       }
                     `}
                   >
                     <span>{item.name}</span>
-                    <span className={`text-[10px] px-1 py-0.5 rounded ${selectedDialect === item.name ? 'bg-[var(--color-accent-ink)]/20 text-[var(--color-accent-ink)]' : 'bg-[var(--color-paper-2)] text-[var(--color-muted)]'}`}>
+                    <span className={`text-[10px] px-1 py-0.2 rounded ${selectedDialect === item.name ? 'bg-[var(--color-accent-ink)]/20 text-[var(--color-accent-ink)]' : 'bg-[var(--color-paper-2)] text-[var(--color-muted)]'}`}>
                       {item.tag}
                     </span>
                   </button>
@@ -220,16 +217,17 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
 
             {/* Right: Security & RAG Badge */}
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[var(--color-paper-3)] text-[var(--color-ink-2)] text-xs font-medium border border-[var(--color-rule)]">
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] inline-block" />
-                <span>Read-only enforced</span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--color-paper-3)] text-[var(--color-ink-2)] text-xs font-medium border border-[var(--color-rule)]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-success)] inline-block" />
+                <span>Read-only</span>
               </span>
-              <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[var(--color-paper-3)] text-[var(--color-accent)] text-xs font-medium border border-[var(--color-rule)]">
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--color-paper-3)] text-[var(--color-accent)] text-xs font-medium border border-[var(--color-rule)]">
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                  <circle cx="11" cy="11" r="8" />
-                  <path d="M21 21l-4.35-4.35" />
+                  <ellipse cx="12" cy="5" rx="9" ry="3" />
+                  <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+                  <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
                 </svg>
-                <span>5 tables indexed</span>
+                <span>5 Tables Connected</span>
               </span>
             </div>
           </div>
@@ -244,10 +242,10 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
                     htmlFor={promptInputId}
                     className="text-xs font-medium text-[var(--color-ink)] block"
                   >
-                    Natural language question
+                    Your Query
                   </label>
-                  <span className="text-xs text-[var(--color-muted)]">
-                    Press Ctrl+Enter
+                  <span className="text-[11px] text-[var(--color-muted)] font-mono">
+                    Ctrl+Enter
                   </span>
                 </div>
 
@@ -268,7 +266,7 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
                         handleTriggerGenerate();
                       }
                     }}
-                    placeholder="Ask a question about students, courses, placements, or attendance…"
+                    placeholder="e.g. Which students have CGPA above 8.5?"
                     className="w-full p-3.5 rounded-xl bg-[var(--color-paper-2)] text-sm text-[var(--color-ink)] placeholder:text-[var(--color-muted)] border border-[var(--color-rule)] focus-visible:outline-2 focus-visible:outline-[var(--color-focus)] resize-none leading-relaxed font-medium"
                   />
                   {queryInput && (
@@ -288,13 +286,13 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
                   <motion.div
                     initial={{ opacity: 0, y: -6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mt-4 p-4 rounded-xl bg-[var(--color-paper-2)] border border-[var(--color-rule)] border-l-2 border-l-[var(--color-accent-2)]"
+                    className="mt-4 p-4 rounded-xl bg-amber-500/5 border border-amber-500/25"
                   >
                     <div className="flex items-start gap-2.5">
-                      <span className="w-2 h-2 rounded-full bg-[var(--color-accent-2)] mt-1.5 shrink-0" />
+                      <span className="w-2 h-2 rounded-full bg-amber-400 mt-1.5 shrink-0 animate-pulse" />
                       <div className="flex-1">
-                        <span className="text-xs font-semibold text-[var(--color-accent-2)] block mb-1">
-                          Clarification required
+                        <span className="text-xs font-semibold text-amber-300 block mb-1">
+                          Needs Clarification
                         </span>
                         <p className="text-xs text-[var(--color-ink-2)] mb-3 leading-relaxed">
                           {liveClarification ? liveClarification.question : currentQueryData?.clarificationQuestion}
@@ -327,8 +325,8 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
 
                 {/* Preset Prompt Pills */}
                 <div className="mt-5">
-                  <span className="text-xs text-[var(--color-muted)] block mb-2">
-                    Curated question scenarios:
+                  <span className="text-xs text-[var(--color-muted)] block mb-2 font-medium">
+                    Sample questions:
                   </span>
                   <div className="flex flex-wrap gap-2">
                     {PRESET_QUERIES.map((preset) => {
@@ -339,14 +337,14 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
                           type="button"
                           onClick={() => handleSelectPreset(preset)}
                           className={`
-                            px-3 py-1.5 rounded-lg text-xs font-medium transition-colors duration-150 cursor-pointer border text-left
+                            px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer border text-left
                             ${isSelected
-                              ? 'bg-[var(--color-accent)] text-[var(--color-accent-ink)] border-[var(--color-accent)]'
+                              ? 'bg-[var(--color-accent)] text-[var(--color-accent-ink)] border-[var(--color-accent)] shadow-sm'
                               : 'bg-[var(--color-paper-2)] text-[var(--color-ink-2)] border-[var(--color-rule)] hover:border-[var(--color-muted)] hover:text-[var(--color-ink)]'
                             }
                           `}
                         >
-                          <span className={isSelected ? 'text-[var(--color-accent-ink)] font-semibold' : 'text-[var(--color-muted)]'}>
+                          <span className={isSelected ? 'text-[var(--color-accent-ink)] font-semibold' : 'text-[var(--color-accent)] font-medium'}>
                             {preset.category}:
                           </span>{' '}
                           <span>{preset.question}</span>
@@ -364,7 +362,7 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
                   onClick={handleTriggerGenerate}
                   disabled={isGenerating || !queryInput.trim()}
                   style={{ whiteSpace: 'nowrap' }}
-                  className="btn-primary flex-1 py-2.5 px-5 rounded-xl text-xs sm:text-sm font-medium cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap"
+                  className="btn-primary flex-1 py-2.5 px-5 rounded-xl text-xs sm:text-sm font-medium cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isGenerating ? (
                     <span className="whitespace-nowrap">Generating SQL…</span>
@@ -382,9 +380,13 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
                 <button
                   type="button"
                   onClick={handleReset}
-                  className="btn-ghost py-2.5 px-4 rounded-xl text-xs sm:text-sm font-medium cursor-pointer whitespace-nowrap"
+                  className="btn-ghost py-2.5 px-4 rounded-xl text-xs sm:text-sm font-medium cursor-pointer whitespace-nowrap inline-flex items-center gap-1.5"
                 >
-                  Reset
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                    <path d="M3 3v5h5" />
+                  </svg>
+                  <span>Reset</span>
                 </button>
               </div>
             </div>
@@ -392,12 +394,12 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
             {/* Right Column: Output Tabs & Viewer */}
             <div className="lg:col-span-7 flex flex-col justify-between bg-[var(--color-paper-2)]">
               {/* Tab Navigation Header */}
-              <div className="px-4 sm:px-6 py-3 border-b border-[var(--color-rule)] flex flex-wrap items-center justify-between gap-3 bg-[var(--color-paper)]">
-                <div className="flex items-center gap-1 sm:gap-1.5">
+              <div className="px-4 sm:px-6 py-2.5 border-b border-[var(--color-rule)] flex flex-wrap items-center justify-between gap-3 bg-[var(--color-paper)]">
+                <div className="flex items-center gap-1">
                   {[
-                    { key: 'sql', label: 'Generated SQL' },
+                    { key: 'sql', label: 'SQL' },
                     { key: 'table', label: `Results${activeData?.rows ? ` (${activeData.rows.length})` : ''}` },
-                    { key: 'explanation', label: 'Plain explanation' },
+                    { key: 'explanation', label: 'Explanation' },
                     { key: 'schema', label: 'Schema' },
                   ].map((tab) => (
                     <button
@@ -405,10 +407,10 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
                       type="button"
                       onClick={() => setActiveTab(tab.key)}
                       className={`
-                        px-3 py-1.5 text-xs font-medium rounded-lg transition-colors duration-150 cursor-pointer
+                        px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-150 cursor-pointer
                         ${activeTab === tab.key
-                          ? 'bg-[var(--color-accent)] text-[var(--color-accent-ink)]'
-                          : 'text-[var(--color-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-paper-2)]'
+                          ? 'bg-[var(--color-accent)] text-[var(--color-accent-ink)] font-semibold shadow-sm'
+                          : 'text-[var(--color-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-paper-3)]'
                         }
                       `}
                     >
@@ -471,22 +473,21 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
                       initial={{ opacity: 0, scale: 0.98 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0 }}
-                      className="flex-1 flex flex-col items-center justify-center py-16 px-4 text-center space-y-4"
+                      className="flex-1 flex flex-col items-center justify-center py-16 px-4 text-center space-y-3"
                     >
                       <div className="relative w-12 h-12 flex items-center justify-center">
-                        <div className="absolute inset-0 rounded-full border-2 border-[var(--color-rule)]" />
-                        <div className="w-12 h-12 rounded-full border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />
-                        <svg className="w-5 h-5 text-[var(--color-accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <div className="w-12 h-12 rounded-full border-2 border-[var(--color-accent)]/20 border-t-[var(--color-accent)] animate-spin" />
+                        <svg className="w-5 h-5 text-[var(--color-accent)] absolute" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <polyline points="16 18 22 12 16 6" />
                           <polyline points="8 6 2 12 8 18" />
                         </svg>
                       </div>
                       <div>
                         <h3 className="font-semibold text-sm text-[var(--color-ink)]">
-                          Synthesizing SQL from natural language…
+                          Generating SQL…
                         </h3>
-                        <p className="text-xs text-[var(--color-muted)] mt-1.5 max-w-sm mx-auto leading-relaxed">
-                          Grounding schema vectors with FAISS, verifying AST query safety with sqlglot, and executing read-only PostgreSQL transaction.
+                        <p className="text-xs text-[var(--color-muted)] mt-1 max-w-xs mx-auto leading-relaxed">
+                          Validating schema safety and executing read-only query.
                         </p>
                       </div>
                     </motion.div>
@@ -499,33 +500,33 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
                       initial={{ opacity: 0, y: 6 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0 }}
-                      className="flex-1 flex flex-col items-center justify-center py-12 px-6 text-center max-w-md mx-auto space-y-4"
+                      className="flex-1 flex flex-col items-center justify-center py-12 px-6 text-center max-w-md mx-auto space-y-3"
                     >
-                      <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center">
-                        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                      <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center">
+                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                           <circle cx="12" cy="12" r="10" />
                           <line x1="12" y1="8" x2="12" y2="12" />
                           <line x1="12" y1="16" x2="12.01" y2="16" />
                         </svg>
                       </div>
                       <div>
-                        <h3 className="font-semibold text-sm text-[var(--color-ink)]">Query Execution Failed</h3>
-                        <p className="text-xs text-[var(--color-muted)] mt-1.5 leading-relaxed font-mono">
+                        <h3 className="font-semibold text-sm text-[var(--color-ink)]">Query Failed</h3>
+                        <p className="text-xs text-[var(--color-muted)] mt-1 leading-relaxed font-mono">
                           {queryError}
                         </p>
                       </div>
-                      <div className="flex gap-2 pt-2">
+                      <div className="flex gap-2 pt-1">
                         <button
                           type="button"
                           onClick={() => handleTriggerGenerate()}
-                          className="btn-primary py-2 px-4 rounded-xl text-xs font-medium cursor-pointer"
+                          className="btn-primary py-1.5 px-3.5 rounded-lg text-xs font-medium cursor-pointer"
                         >
                           Try again
                         </button>
                         <button
                           type="button"
                           onClick={handleReset}
-                          className="btn-ghost py-2 px-4 rounded-xl text-xs font-medium cursor-pointer"
+                          className="btn-ghost py-1.5 px-3.5 rounded-lg text-xs font-medium cursor-pointer"
                         >
                           Reset
                         </button>
@@ -543,8 +544,8 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
                       transition={{ duration: 0.18 }}
                       className="space-y-3"
                     >
-                      <span className="text-xs text-[var(--color-muted)] block mb-2 font-medium">
-                        Available tables in demo database:
+                      <span className="text-xs text-[var(--color-muted)] block mb-1 font-medium">
+                        Tables in database:
                       </span>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                         {Object.keys(DATABASE_SCHEMA).map((tblKey) => {
@@ -555,15 +556,15 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
                               key={tbl.name}
                               className={`p-3 rounded-xl border text-xs transition-colors duration-150 ${
                                 isUsed
-                                  ? 'bg-[var(--color-paper-3)] border-[var(--color-accent)] text-[var(--color-ink)]'
+                                  ? 'bg-[var(--color-paper-3)] border-[var(--color-accent)] text-[var(--color-ink)] shadow-sm'
                                   : 'bg-[var(--color-paper)] border-[var(--color-rule)] text-[var(--color-muted)]'
                               }`}
                             >
                               <div className="flex items-center justify-between mb-1">
                                 <span className="font-mono font-semibold text-[var(--color-ink)]">{tbl.name}</span>
                                 {isUsed && (
-                                  <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--color-accent)] text-[var(--color-accent-ink)] font-medium">
-                                    in query
+                                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-[var(--color-accent)] text-[var(--color-accent-ink)] font-semibold">
+                                    used
                                   </span>
                                 )}
                               </div>
@@ -582,34 +583,34 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
                       initial={{ opacity: 0, scale: 0.98 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0 }}
-                      className="flex-1 flex flex-col items-center justify-center py-12 px-4 text-center max-w-lg mx-auto space-y-4"
+                      className="flex-1 flex flex-col items-center justify-center py-12 px-4 text-center max-w-md mx-auto space-y-3"
                     >
-                      <div className="w-12 h-12 rounded-2xl bg-[var(--color-paper-3)] border border-[var(--color-rule)] flex items-center justify-center text-[var(--color-accent)] shadow-sm">
+                      <div className="w-12 h-12 rounded-2xl bg-[var(--color-paper-3)] border border-[var(--color-rule)] flex items-center justify-center text-[var(--color-accent)] shadow-lg shadow-black/20">
                         <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
                           <polyline points="16 18 22 12 16 6" />
                           <polyline points="8 6 2 12 8 18" />
                         </svg>
                       </div>
                       <div>
-                        <h3 className="font-semibold text-sm sm:text-base text-[var(--color-ink)]">
-                          {queryInput.trim() ? 'Ready to execute' : 'Ready to generate SQL'}
+                        <h3 className="font-semibold text-base text-[var(--color-ink)]">
+                          {queryInput.trim() ? 'Ready to execute' : 'No query executed yet'}
                         </h3>
-                        <p className="text-xs text-[var(--color-muted)] mt-1.5 leading-relaxed">
+                        <p className="text-xs text-[var(--color-muted)] mt-1 leading-relaxed">
                           {queryInput.trim()
-                            ? 'Question loaded in workbench. Click "Generate SQL" or press Ctrl+Enter to translate it into verified SQL and fetch results.'
-                            : 'Type any natural language question or pick a scenario on the left, then click "Generate SQL". By default, all results remain in clean reset state.'
+                            ? 'Press Ctrl+Enter or click Generate SQL to run.'
+                            : 'Ask a question or pick an example to view SQL and live data.'
                           }
                         </p>
                       </div>
                       {!queryInput.trim() && (
                         <div className="pt-2">
-                          <span className="text-[11px] text-[var(--color-muted)] font-medium block mb-2">Example questions you can ask:</span>
+                          <span className="text-[11px] text-[var(--color-muted)] font-medium block mb-2">Try asking:</span>
                           <div className="flex flex-wrap justify-center gap-1.5">
                             {[
-                              'List all students from Mumbai',
-                              'Which companies are recruiting?',
-                              'Courses with more than 3 credits',
-                              'Students with attendance above 80%'
+                              'Students from Mumbai',
+                              'Companies recruiting',
+                              'Courses with 4 credits',
+                              'Attendance above 80%'
                             ].map((q) => (
                               <button
                                 key={q}
@@ -619,9 +620,9 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
                                   setSelectedPresetId(null);
                                   setQueryError(null);
                                 }}
-                                className="px-2.5 py-1 rounded-md bg-[var(--color-paper-3)] border border-[var(--color-rule)] text-[11px] text-[var(--color-ink-2)] hover:text-[var(--color-ink)] hover:border-[var(--color-accent)] transition-colors cursor-pointer"
+                                className="px-2.5 py-1 rounded-lg bg-[var(--color-paper-3)] border border-[var(--color-rule)] text-[11px] text-[var(--color-ink-2)] hover:text-[var(--color-ink)] hover:border-[var(--color-accent)] transition-all cursor-pointer"
                               >
-                                "{q}"
+                                {q}
                               </button>
                             ))}
                           </div>
@@ -638,36 +639,36 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.18 }}
-                      className="space-y-4"
+                      className="space-y-3"
                     >
-                      <div className="rounded-xl code-container p-4 overflow-x-auto text-xs leading-relaxed font-mono">
+                      <div className="rounded-xl code-container p-4 overflow-x-auto text-xs leading-relaxed font-mono shadow-inner">
                         <div className="table w-full">
                           {formatSqlTokens(activeData.sql)}
                         </div>
                       </div>
 
                       {/* Safety & Tables Metadata Bar */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                        <div className="p-3.5 rounded-xl border border-[var(--color-rule)] bg-[var(--color-paper)] text-xs">
-                          <span className="text-[var(--color-muted)] text-xs block mb-1.5">
-                            Referenced tables:
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                        <div className="p-3 rounded-xl border border-[var(--color-rule)] bg-[var(--color-paper)] text-xs">
+                          <span className="text-[var(--color-muted)] text-[11px] block mb-1">
+                            Tables:
                           </span>
                           <div className="flex flex-wrap gap-1.5">
                             {(activeData.tablesUsed || ['students']).map((t) => (
-                              <span key={t} className="px-2 py-0.5 rounded bg-[var(--color-paper-3)] text-[var(--color-accent)] font-mono text-xs">
+                              <span key={t} className="px-2 py-0.5 rounded bg-[var(--color-paper-3)] text-[var(--color-accent)] font-mono text-[11px] border border-[var(--color-rule)]">
                                 {t}
                               </span>
                             ))}
                           </div>
                         </div>
 
-                        <div className="p-3.5 rounded-xl border border-[var(--color-rule)] bg-[var(--color-paper)] text-xs">
-                          <span className="text-[var(--color-muted)] text-xs block mb-1.5">
-                            SQL safety verification:
+                        <div className="p-3 rounded-xl border border-[var(--color-rule)] bg-[var(--color-paper)] text-xs flex flex-col justify-center">
+                          <span className="text-[var(--color-muted)] text-[11px] block mb-1">
+                            Safety validation:
                           </span>
-                          <span className="text-[var(--color-ink)] font-medium flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-[var(--color-accent)] inline-block" />
-                            Passed sqlglot AST verification (SELECT only)
+                          <span className="text-[var(--color-ink)] font-medium flex items-center gap-1.5 text-xs">
+                            <span className="w-2 h-2 rounded-full bg-[var(--color-success)] inline-block" />
+                            Passed AST check (SELECT only)
                           </span>
                         </div>
                       </div>
@@ -690,12 +691,12 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
                           type="text"
                           value={filterText}
                           onChange={(e) => setFilterText(e.target.value)}
-                          placeholder="Search in returned rows…"
-                          aria-label="Search in returned rows"
-                          className="px-3 py-1.5 rounded-lg bg-[var(--color-paper-3)] text-xs text-[var(--color-ink)] placeholder:text-[var(--color-muted)] border border-[var(--color-rule)] focus-visible:outline-2 focus-visible:outline-[var(--color-focus)] w-64 font-medium"
+                          placeholder="Filter rows…"
+                          aria-label="Filter returned rows"
+                          className="px-3 py-1.5 rounded-lg bg-[var(--color-paper-3)] text-xs text-[var(--color-ink)] placeholder:text-[var(--color-muted)] border border-[var(--color-rule)] focus-visible:outline-2 focus-visible:outline-[var(--color-focus)] w-60 font-medium"
                         />
-                        <span className="text-xs text-[var(--color-muted)]">
-                          Showing {filteredRows.length} of {activeData.rows.length} rows
+                        <span className="text-xs text-[var(--color-muted)] font-mono">
+                          {filteredRows.length} of {activeData.rows.length} rows
                         </span>
                       </div>
 
@@ -703,9 +704,9 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
                       <div className="border border-[var(--color-rule)] rounded-xl overflow-x-auto max-h-[300px] overflow-y-auto bg-[var(--color-paper-3)]">
                         <table className="w-full text-left text-xs">
                           <thead>
-                            <tr className="border-b border-[var(--color-rule)] bg-[var(--color-paper)] text-[var(--color-ink)]">
+                            <tr className="border-b border-[var(--color-rule)] bg-[var(--color-paper)] text-[var(--color-muted)] uppercase tracking-wider text-[11px]">
                               {(activeData.columns || []).map((col) => (
-                                <th key={col} className="p-3 font-semibold text-xs">
+                                <th key={col} className="p-3 font-semibold">
                                   {col}
                                 </th>
                               ))}
@@ -714,7 +715,7 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
                           <tbody className="divide-y divide-[var(--color-rule)]">
                             {filteredRows.length > 0 ? (
                               filteredRows.map((row, idx) => (
-                                <tr key={idx} className="hover:bg-[var(--color-paper-2)] transition-colors duration-150">
+                                <tr key={idx} className="hover:bg-white/[0.03] transition-colors duration-150">
                                   {(activeData.columns || []).map((col) => (
                                     <td key={col} className="p-3 text-[var(--color-ink-2)] whitespace-nowrap font-mono">
                                       {row[col]}
@@ -725,7 +726,7 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
                             ) : (
                               <tr>
                                 <td colSpan={(activeData.columns || []).length} className="p-6 text-center text-[var(--color-muted)]">
-                                  No rows match your filter keyword.
+                                  No matching rows.
                                 </td>
                               </tr>
                             )}
@@ -743,23 +744,23 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.18 }}
-                      className="space-y-4 text-xs sm:text-sm text-[var(--color-ink-2)] leading-relaxed"
+                      className="space-y-3 text-xs sm:text-sm text-[var(--color-ink-2)] leading-relaxed"
                     >
                       <div className="p-4 rounded-xl bg-[var(--color-paper)] border border-[var(--color-rule)]">
                         <span className="text-[var(--color-accent)] font-semibold block mb-1 text-xs">
-                          Query objective and intent:
+                          Summary:
                         </span>
-                        <p className="text-[var(--color-ink)]">{activeData.explanation}</p>
+                        <p className="text-[var(--color-ink)] text-xs sm:text-sm">{activeData.explanation}</p>
                       </div>
 
                       <div className="p-4 rounded-xl bg-[var(--color-paper)] border border-[var(--color-rule)]">
                         <span className="text-[var(--color-muted)] font-semibold block mb-2 text-xs">
-                          Pipeline architecture breakdown:
+                          Execution Details:
                         </span>
-                        <ul className="space-y-2 list-disc list-inside text-[var(--color-ink-2)]">
-                          <li><strong>RAG target:</strong> Indexed schema matched with {(activeData.tablesUsed || ['students']).join(', ')} tables.</li>
-                          <li><strong>Safety analysis:</strong> Verified zero mutation commands.</li>
-                          <li><strong>Latency budget:</strong> Execution completed in {activeData.executionTime || '12ms'}.</li>
+                        <ul className="space-y-1.5 list-disc list-inside text-xs text-[var(--color-ink-2)]">
+                          <li><strong>Tables:</strong> {(activeData.tablesUsed || ['students']).join(', ')}</li>
+                          <li><strong>Safety:</strong> Read-only SELECT</li>
+                          <li><strong>Latency:</strong> {activeData.executionTime || '12ms'}</li>
                         </ul>
                       </div>
                     </motion.div>

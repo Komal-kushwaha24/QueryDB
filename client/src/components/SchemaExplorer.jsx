@@ -49,35 +49,35 @@ export default function SchemaExplorer() {
       <div className="max-w-[1280px] mx-auto">
         {/* Section Header */}
         <div className="max-w-2xl mx-auto text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full surface-elevated text-xs font-medium text-[var(--color-accent)] border border-[var(--color-rule)] mb-5">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full surface-elevated text-xs font-medium text-[var(--color-accent)] border border-[var(--color-rule)] mb-4">
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <ellipse cx="12" cy="5" rx="9" ry="3" />
               <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
               <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
             </svg>
-            <span>Schema awareness and vector context</span>
+            <span>PostgreSQL Schema</span>
           </div>
           <h2
-            className="font-display font-semibold text-[var(--color-ink)] mb-4 tracking-tight leading-tight"
+            className="font-display font-semibold text-[var(--color-ink)] mb-3 tracking-tight leading-tight"
             style={{ fontSize: 'clamp(1.75rem, 3vw + 0.5rem, 2.75rem)', textWrap: 'balance' }}
           >
-            Inspect the live PostgreSQL schema model
+            Explore Live Database Schema
           </h2>
           <p
             className="text-[var(--color-muted)] leading-relaxed"
-            style={{ fontSize: 'var(--text-lead)', maxWidth: '56ch', margin: '0 auto' }}
+            style={{ fontSize: 'var(--text-lead)', maxWidth: '50ch', margin: '0 auto' }}
           >
-            QueryDB reads your live PostgreSQL metadata via the schema API, embeds table definitions into FAISS vectors, and preserves relational foreign-key edges for precise JOIN generation.
+            Inspect tables, column definitions, and foreign keys connected to QueryDB.
           </p>
         </div>
 
         {/* Schema Explorer Workbench */}
-        <div className="surface-card rounded-2xl border border-[var(--color-rule)] overflow-hidden">
+        <div className="surface-card rounded-2xl border border-[var(--color-rule)] overflow-hidden shadow-2xl shadow-black/40">
           <div className="grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-[var(--color-rule)]">
             {/* Table List Sidebar */}
             <div className="md:col-span-4 p-5 sm:p-6 bg-[var(--color-paper)]">
               <span className="text-xs font-medium text-[var(--color-muted)] block mb-3">
-                Database tables ({Object.keys(schemaData).length} {isLiveSchema ? 'live connected' : 'indexed'}):
+                Tables ({Object.keys(schemaData).length}):
               </span>
               <div className="space-y-2">
                 {Object.keys(schemaData).map((key) => {
@@ -89,9 +89,9 @@ export default function SchemaExplorer() {
                       type="button"
                       onClick={() => setActiveTableKey(key)}
                       className={`
-                        w-full text-left px-4 py-3 rounded-xl transition-colors duration-150 flex items-center justify-between cursor-pointer border
+                        w-full text-left px-4 py-3 rounded-xl transition-all duration-150 flex items-center justify-between cursor-pointer border
                         ${isSelected
-                          ? 'bg-[var(--color-accent)] text-[var(--color-accent-ink)] border-[var(--color-accent)] font-medium'
+                          ? 'bg-[var(--color-accent)] text-[var(--color-accent-ink)] border-[var(--color-accent)] font-semibold shadow-sm'
                           : 'bg-[var(--color-paper-2)] text-[var(--color-ink-2)] border-[var(--color-rule)] hover:border-[var(--color-muted)] hover:text-[var(--color-ink)]'
                         }
                       `}
@@ -113,11 +113,11 @@ export default function SchemaExplorer() {
               </div>
 
               {/* RAG summary pill */}
-              <div className="mt-6 p-4 rounded-xl border border-[var(--color-rule)] bg-[var(--color-paper-2)] text-xs text-[var(--color-muted)] leading-relaxed">
-                <span className="text-[var(--color-accent)] font-medium block mb-1">
-                  FAISS schema indexing:
+              <div className="mt-6 p-3.5 rounded-xl border border-[var(--color-rule)] bg-[var(--color-paper-2)] text-xs text-[var(--color-muted)] leading-relaxed">
+                <span className="text-[var(--color-accent)] font-semibold block mb-1">
+                  Relational awareness:
                 </span>
-                Table descriptions, column types, and foreign key references are embedded as dense vectors to eliminate relational hallucinations.
+                Foreign-key relationships are mapped automatically to generate accurate JOINs without hallucinations.
               </div>
             </div>
 

@@ -43,19 +43,20 @@ html, body {
   border: 1px solid var(--color-rule);
 }
 
-/* Primary pill button */
+/* Primary pill button with modern vibrant gradient */
 .btn-primary {
-  background-color: var(--color-accent);
-  color: var(--color-accent-ink);
+  background: linear-gradient(135deg, oklch(72% 0.14 274) 0%, oklch(62% 0.17 285) 100%);
+  color: oklch(98% 0.005 75);
   font-weight: 500;
-  box-shadow: inset 0 1px 0 var(--color-primary-glow);
-  transition-property: background-color, transform, box-shadow;
+  box-shadow: 0 4px 14px -3px oklch(65% 0.16 280 / 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition-property: all;
   transition-duration: var(--dur-short);
   transition-timing-function: var(--ease-out);
 }
 
 .btn-primary:hover {
-  background-color: var(--color-accent-hi);
+  background: linear-gradient(135deg, oklch(76% 0.14 274) 0%, oklch(66% 0.17 285) 100%);
+  box-shadow: 0 6px 20px -3px oklch(65% 0.18 280 / 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.3);
   transform: translateY(-1px);
 }
 
@@ -74,7 +75,7 @@ html, body {
   color: var(--color-ink);
   border: 1px solid var(--color-rule);
   font-weight: 500;
-  transition-property: background-color, color, border-color, transform;
+  transition-property: background-color, color, border-color, transform, box-shadow;
   transition-duration: var(--dur-short);
   transition-timing-function: var(--ease-out);
 }
@@ -83,6 +84,7 @@ html, body {
   background-color: var(--color-paper-2);
   color: var(--color-light);
   border-color: var(--color-muted);
+  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.3);
   transform: translateY(-1px);
 }
 
@@ -97,16 +99,17 @@ html, body {
 
 /* Code block container */
 .code-container {
-  background-color: var(--color-paper-3);
+  background-color: oklch(14% 0.012 268);
   color: var(--color-ink);
   font-family: var(--font-mono);
   border: 1px solid var(--color-rule);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 /* Custom code syntax highlights using tokens */
-.token-keyword { color: var(--syntax-keyword); font-weight: 600; }
-.token-function { color: var(--syntax-func); }
-.token-string { color: var(--syntax-string); }
-.token-number { color: var(--syntax-number); }
-.token-operator { color: var(--color-muted); }
+.sql-keyword, .token-keyword { color: oklch(78% 0.13 280); font-weight: 600; }
+.sql-func, .token-function { color: oklch(84% 0.11 65); font-weight: 600; }
+.sql-string, .token-string { color: oklch(80% 0.14 150); }
+.sql-number, .token-number { color: oklch(84% 0.13 85); }
+.sql-punct, .token-operator { color: oklch(65% 0.02 265); }
 .token-comment { color: var(--color-muted); font-style: italic; }

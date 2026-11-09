@@ -88,7 +88,7 @@ export default function Navbar({ currentView = 'landing', onNavigate }) {
         ) : (
           <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full surface-elevated border border-[var(--color-rule)] text-xs font-medium text-[var(--color-ink-2)]">
             <span className="w-2 h-2 rounded-full bg-[var(--color-accent)] inline-block animate-pulse" />
-            <span>Interactive SQL Playground Workspace</span>
+            <span>SQL Playground</span>
           </div>
         )}
 
