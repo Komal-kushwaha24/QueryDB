@@ -11,7 +11,7 @@ const compatibleDatabases = [
 
 export default function Hero({ onLaunchPlayground }) {
   return (
-    <section className="relative pt-32 pb-20 sm:pt-36 sm:pb-24 px-4 sm:px-6 lg:px-8 overflow-hidden flex flex-col items-center justify-center text-center">
+    <section className="relative pt-32 pb-20 sm:pt-36 sm:pb-24 px-4 sm:px-6 lg:px-8 overflow-hidden flex flex-col items-center justify-center text-center w-full">
       {/* Background radial gradient glow */}
       <div
         className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[720px] h-[400px] pointer-events-none opacity-20 blur-[130px] -z-10"
@@ -20,8 +20,8 @@ export default function Hero({ onLaunchPlayground }) {
         }}
       />
 
-      <div className="relative z-10 max-w-4xl mx-auto w-full">
-        {/* Status indicator pill */}
+      <div className="relative z-10 max-w-[1240px] mx-auto w-full flex flex-col items-center">
+        {/* 1. Status indicator pill */}
         <motion.div
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
@@ -32,19 +32,21 @@ export default function Hero({ onLaunchPlayground }) {
           <span>Schema-aware text to SQL engine for PostgreSQL</span>
         </motion.div>
 
-        {/* Hero Headline */}
+        {/* 2. Hero Headline */}
         <motion.h1
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-          className="font-display font-bold text-[var(--color-ink)] tracking-tight leading-[1.12] mb-5 mx-auto"
+          className="font-display font-bold text-[var(--color-ink)] tracking-tight mb-5 mx-auto max-w-[1100px] w-full text-center"
           style={{
-            fontSize: 'clamp(2.25rem, 3.8vw + 0.5rem, 3.75rem)',
+            fontSize: 'clamp(2.125rem, 3.5vw + 0.5rem, 3.75rem)',
+            lineHeight: 1.12,
             textWrap: 'balance',
-            maxWidth: '28ch',
           }}
         >
-          Ask your database anything. Generate{' '}
+          Ask your database anything.{' '}
+          <br className="hidden sm:inline" />
+          Generate{' '}
           <span
             style={{
               background: 'linear-gradient(135deg, var(--color-ink) 20%, var(--color-accent) 100%)',
@@ -57,23 +59,23 @@ export default function Hero({ onLaunchPlayground }) {
           in seconds.
         </motion.h1>
 
-        {/* Subtitle */}
+        {/* 3. Subtitle */}
         <motion.p
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-          className="text-base sm:text-lg text-[var(--color-muted)] leading-relaxed mb-8 mx-auto"
-          style={{ maxWidth: '48ch' }}
+          className="text-base sm:text-lg md:text-[19px] text-[var(--color-muted)] leading-[1.6] mb-8 mx-auto max-w-[720px] w-full text-center"
+          style={{ textWrap: 'pretty' }}
         >
           QueryDB combines live schema RAG, interactive ambiguity clarification, and compiler-grade AST read-only guards to write reliable, hallucination-free PostgreSQL queries.
         </motion.p>
 
-        {/* Main Action Buttons */}
+        {/* 4. Main Action Buttons */}
         <motion.div
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
-          className="flex flex-col sm:flex-row gap-3.5 justify-center items-center mb-14"
+          className="flex flex-col sm:flex-row gap-3.5 justify-center items-center mb-10 w-full"
         >
           <button
             type="button"
@@ -113,12 +115,12 @@ export default function Hero({ onLaunchPlayground }) {
           </a>
         </motion.div>
 
-        {/* Interactive Hero Preview Teaser (text2sql.ai inspired) */}
+        {/* 5. Interactive Hero Preview Teaser (text2sql.ai inspired) */}
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
-          className="surface-card rounded-2xl border border-[var(--color-rule)] overflow-hidden text-left mb-12"
+          className="surface-card rounded-2xl border border-[var(--color-rule)] overflow-hidden text-left mb-12 max-w-[880px] w-full mx-auto"
         >
           {/* Card Window Bar */}
           <div className="px-4 py-3 border-b border-[var(--color-rule)] bg-[var(--color-paper-3)] flex items-center justify-between">
@@ -200,12 +202,12 @@ export default function Hero({ onLaunchPlayground }) {
           </div>
         </motion.div>
 
-        {/* Database compatibility strip */}
+        {/* 6. Database compatibility strip */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.7, delay: 0.4 }}
-          className="pt-4 border-t border-[var(--color-rule)]"
+          className="pt-6 border-t border-[var(--color-rule)] max-w-[880px] w-full mx-auto"
         >
           <span className="text-xs text-[var(--color-muted)] block mb-3 font-medium">
             Supported databases and verification tools
