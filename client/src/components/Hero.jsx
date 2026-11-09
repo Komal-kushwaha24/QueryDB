@@ -1,17 +1,20 @@
 import { motion } from 'framer-motion';
 
-const compatibleDatabases = [
-  'PostgreSQL 14–16',
-  'Supabase',
-  'Neon Serverless',
-  'AWS Aurora',
-  'FAISS Vector RAG',
-  'SQLGlot AST Guard',
+const activeStack = [
+  { name: 'PostgreSQL 14–16', badge: 'Active native engine', active: true },
+  { name: 'FAISS Vector RAG', badge: 'Schema grounding' },
+  { name: 'SQLGlot AST Guard', badge: 'Read-only gate' },
+];
+
+const futureSupport = [
+  { name: 'MySQL 8.0', status: 'Coming soon' },
+  { name: 'Snowflake', status: 'Coming soon' },
+  { name: 'Supabase & Neon', status: 'Planned' },
 ];
 
 export default function Hero({ onLaunchPlayground }) {
   return (
-    <section className="relative pt-32 pb-20 sm:pt-36 sm:pb-24 px-4 sm:px-6 lg:px-8 overflow-hidden flex flex-col items-center justify-center text-center w-full">
+    <section className="relative pt-28 pb-16 sm:pt-32 sm:pb-20 px-4 sm:px-6 lg:px-8 overflow-hidden flex flex-col items-center justify-center text-center w-full">
       {/* Background radial gradient glow */}
       <div
         className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[720px] h-[400px] pointer-events-none opacity-20 blur-[130px] -z-10"
@@ -26,7 +29,7 @@ export default function Hero({ onLaunchPlayground }) {
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full surface-elevated text-xs font-medium text-[var(--color-ink-2)] border border-[var(--color-rule)] mb-6 shadow-sm"
+          className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full surface-elevated text-xs font-medium text-[var(--color-ink-2)] border border-[var(--color-rule)] mb-5 shadow-sm"
         >
           <span className="w-2 h-2 rounded-full bg-[var(--color-accent)] inline-block animate-pulse" />
           <span>Schema-aware text to SQL engine for PostgreSQL</span>
@@ -37,7 +40,7 @@ export default function Hero({ onLaunchPlayground }) {
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-          className="font-display font-bold text-[var(--color-ink)] tracking-tight mb-5 mx-auto max-w-[1100px] w-full text-center"
+          className="font-display font-bold text-[var(--color-ink)] tracking-tight mb-4 mx-auto max-w-[1100px] w-full text-center"
           style={{
             fontSize: 'clamp(2.125rem, 3.5vw + 0.5rem, 3.75rem)',
             lineHeight: 1.12,
@@ -64,7 +67,7 @@ export default function Hero({ onLaunchPlayground }) {
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-          className="text-base sm:text-lg md:text-[19px] text-[var(--color-muted)] leading-[1.6] mb-8 mx-auto max-w-[720px] w-full text-center"
+          className="text-base sm:text-lg md:text-[19px] text-[var(--color-muted)] leading-[1.6] mb-7 mx-auto max-w-[720px] w-full text-center"
           style={{ textWrap: 'pretty' }}
         >
           QueryDB combines live schema RAG, interactive ambiguity clarification, and compiler-grade AST read-only guards to write reliable, hallucination-free PostgreSQL queries.
@@ -75,7 +78,7 @@ export default function Hero({ onLaunchPlayground }) {
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
-          className="flex flex-col sm:flex-row gap-3.5 justify-center items-center mb-10 w-full"
+          className="flex flex-col sm:flex-row gap-3.5 justify-center items-center mb-8 w-full"
         >
           <button
             type="button"
@@ -120,7 +123,7 @@ export default function Hero({ onLaunchPlayground }) {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
-          className="surface-card rounded-2xl border border-[var(--color-rule)] overflow-hidden text-left mb-12 max-w-[880px] w-full mx-auto"
+          className="surface-card rounded-2xl border border-[var(--color-rule)] overflow-hidden text-left mb-8 max-w-[880px] w-full mx-auto"
         >
           {/* Card Window Bar */}
           <div className="px-4 py-3 border-b border-[var(--color-rule)] bg-[var(--color-paper-3)] flex items-center justify-between">
@@ -202,25 +205,54 @@ export default function Hero({ onLaunchPlayground }) {
           </div>
         </motion.div>
 
-        {/* 6. Database compatibility strip */}
+        {/* 6. Database compatibility & roadmap strip */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.7, delay: 0.4 }}
-          className="pt-6 border-t border-[var(--color-rule)] max-w-[880px] w-full mx-auto"
+          className="pt-7 border-t border-[var(--color-rule)] max-w-[880px] w-full mx-auto"
         >
-          <span className="text-xs text-[var(--color-muted)] block mb-3 font-medium">
-            Supported databases and verification tools
-          </span>
-          <div className="flex flex-wrap items-center justify-center gap-2.5 text-xs text-[var(--color-ink-2)]">
-            {compatibleDatabases.map((db) => (
-              <span
-                key={db}
-                className="px-3 py-1 rounded-lg surface-elevated border border-[var(--color-rule)] font-medium"
-              >
-                {db}
-              </span>
-            ))}
+          {/* Active native engine */}
+          <div className="mb-4">
+            <span className="text-xs text-[var(--color-muted)] block mb-2.5 font-medium">
+              Active native engine and verification tools
+            </span>
+            <div className="flex flex-wrap items-center justify-center gap-2.5 text-xs text-[var(--color-ink-2)]">
+              {activeStack.map((item) => (
+                <span
+                  key={item.name}
+                  className="px-3 py-1.5 rounded-lg surface-elevated border border-[var(--color-rule)] font-medium inline-flex items-center gap-2"
+                >
+                  {item.active && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-success)] inline-block animate-pulse" />
+                  )}
+                  <span>{item.name}</span>
+                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-[var(--color-paper-2)] text-[var(--color-accent)] border border-[var(--color-rule)]">
+                    {item.badge}
+                  </span>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Future database support */}
+          <div>
+            <span className="text-[11px] text-[var(--color-muted)]/80 block mb-2 font-medium">
+              Future database support on roadmap
+            </span>
+            <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-[var(--color-muted)]">
+              {futureSupport.map((item) => (
+                <span
+                  key={item.name}
+                  className="px-2.5 py-1 rounded-lg bg-[var(--color-paper-2)]/60 border border-[var(--color-rule)]/70 font-medium inline-flex items-center gap-1.5 opacity-80"
+                >
+                  <span>{item.name}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded surface-elevated text-[var(--color-muted)] border border-[var(--color-rule)]/50">
+                    {item.status}
+                  </span>
+                </span>
+              ))}
+            </div>
           </div>
         </motion.div>
       </div>

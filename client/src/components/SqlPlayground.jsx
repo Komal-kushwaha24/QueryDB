@@ -116,20 +116,27 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
             <div className="flex items-center gap-3">
               <span className="text-xs font-medium text-[var(--color-muted)]">Active dialect:</span>
               <div className="flex items-center gap-1 bg-[var(--color-paper-3)] p-1 rounded-lg border border-[var(--color-rule)]">
-                {['PostgreSQL 16', 'MySQL 8.0', 'Snowflake'].map((dialect) => (
+                {[
+                  { name: 'PostgreSQL 16', tag: 'Active' },
+                  { name: 'MySQL 8.0', tag: 'Preview' },
+                  { name: 'Snowflake', tag: 'Preview' },
+                ].map((item) => (
                   <button
-                    key={dialect}
+                    key={item.name}
                     type="button"
-                    onClick={() => setSelectedDialect(dialect)}
+                    onClick={() => setSelectedDialect(item.name)}
                     className={`
-                      px-2.5 py-1 rounded-md text-xs font-medium transition-colors duration-150 cursor-pointer
-                      ${selectedDialect === dialect
+                      px-2.5 py-1 rounded-md text-xs font-medium transition-colors duration-150 cursor-pointer inline-flex items-center gap-1.5
+                      ${selectedDialect === item.name
                         ? 'bg-[var(--color-accent)] text-[var(--color-accent-ink)]'
                         : 'text-[var(--color-muted)] hover:text-[var(--color-ink)]'
                       }
                     `}
                   >
-                    {dialect}
+                    <span>{item.name}</span>
+                    <span className={`text-[10px] px-1 py-0.5 rounded ${selectedDialect === item.name ? 'bg-[var(--color-accent-ink)]/20 text-[var(--color-accent-ink)]' : 'bg-[var(--color-paper-2)] text-[var(--color-muted)]'}`}>
+                      {item.tag}
+                    </span>
                   </button>
                 ))}
               </div>
