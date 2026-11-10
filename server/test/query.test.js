@@ -10,7 +10,14 @@ let mockAiServer;
 
 test.before(async () => {
   // 1. Ensure backend Express server is running on port 3000
-  if (!server || !server.listening) {
+  if (server) {
+    if (!server.listening) {
+      await new Promise((resolve) => {
+        server.once('listening', resolve);
+        server.once('error', () => resolve());
+      });
+    }
+  } else {
     try {
       const res = await fetch('http://localhost:3000/api/health', {
         signal: AbortSignal.timeout(1000)
