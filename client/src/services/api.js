@@ -14,11 +14,11 @@ const API_BASE = '/api';
  */
 export async function executeQuery(question, selectedOption = null) {
   const payload = {
-    question: typeof question === 'string' ? question.trim() : '',
+    question: question.trim(),
   };
 
-  if (typeof selectedOption === 'string' && selectedOption.trim()) {
-    payload.selectedOption = selectedOption.trim();
+  if (selectedOption) {
+    payload.selectedOption = selectedOption;
   }
 
   const response = await fetch(`${API_BASE}/query`, {

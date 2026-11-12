@@ -4,84 +4,6 @@ import { DATABASE_SCHEMA, PRESET_QUERIES } from '../data/playgroundData';
 import { formatSqlTokens } from '../utils/sqlHighlighter';
 import { executeQuery } from '../services/api';
 
-/**
- * Intelligent semantic preset / offline matcher.
- * Matches common campus / student SQL query intents to sample presets
- * when the backend is offline, allowing interactive testing without crashes.
- */
-function findMatchingPresetOrFallback(input, chosenOption = null) {
-  const text = (input || '').trim().toLowerCase();
-  if (!text) return null;
-
-  // 1. Exact preset question match
-  const exact = PRESET_QUERIES.find((p) => p.question.trim().toLowerCase() === text);
-  if (exact) return exact;
-
-  // 2. Substring matching with preset questions
-  const sub = PRESET_QUERIES.find(
-    (p) => p.question.toLowerCase().includes(text) || text.includes(p.question.toLowerCase())
-  );
-  if (sub) return sub;
-
-  // 3. Ambiguity intent without chosen option
-  if ((text.includes('top student') || text === 'students' || text === 'show top') && !chosenOption) {
-    const ambiguityPreset = PRESET_QUERIES.find((p) => p.id === 'ambiguity-demo');
-    if (ambiguityPreset) return ambiguityPreset;
-  }
-
-  // 4. CGPA Leaderboards (e.g. "show student with top 5 cgpa", "top cgpa", "rank students")
-  if (
-    (text.includes('cgpa') || text.includes('gpa')) &&
-    !text.includes('avg') &&
-    !text.includes('average')
-  ) {
-    return PRESET_QUERIES.find((p) => p.id === 'cgpa-leaders');
-  }
-
-  // 5. Department CGPA Averages
-  if (
-    text.includes('avg') ||
-    text.includes('average') ||
-    (text.includes('department') && (text.includes('cgpa') || text.includes('gpa')))
-  ) {
-    return PRESET_QUERIES.find((p) => p.id === 'department-avg');
-  }
-
-  // 6. Placements & Packages
-  if (
-    text.includes('placement') ||
-    text.includes('package') ||
-    text.includes('ctc') ||
-    text.includes('salary') ||
-    text.includes('company') ||
-    text.includes('companies') ||
-    text.includes('placed') ||
-    text.includes('job') ||
-    text.includes('offer')
-  ) {
-    return PRESET_QUERIES.find((p) => p.id === 'placement-join');
-  }
-
-  // 7. Attendance Deficit / Compliance
-  if (
-    text.includes('attendance') ||
-    text.includes('absent') ||
-    text.includes('75') ||
-    text.includes('deficit') ||
-    text.includes('shortage') ||
-    text.includes('compliance')
-  ) {
-    return PRESET_QUERIES.find((p) => p.id === 'attendance-alert');
-  }
-
-  // 8. General student queries (e.g. "show students", "list students")
-  if (text.includes('student')) {
-    return PRESET_QUERIES.find((p) => p.id === 'cgpa-leaders');
-  }
-
-  return null;
-}
-
 export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
   const [selectedPresetId, setSelectedPresetId] = useState(null);
   const [queryInput, setQueryInput] = useState('');
@@ -129,11 +51,7 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
     setIsGenerating(true);
     setQueryError(null);
 
-    // Guard against DOM events accidentally passed as overrideOption
-    const validOption = typeof overrideOption === 'string' ? overrideOption : null;
-    const chosenOption = validOption !== null
-      ? validOption
-      : (typeof selectedAmbiguityOption === 'string' ? selectedAmbiguityOption : null);
+    const chosenOption = overrideOption !== null ? overrideOption : selectedAmbiguityOption;
 
     try {
       const data = await executeQuery(queryInput, chosenOption || undefined);
@@ -164,34 +82,23 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
       }
     } catch (err) {
       console.warn('Backend query error:', err.message);
+      setLiveClarification(null);
 
-      // Check if input matches preset or semantic query for preview fallback
-      const matchingPreset = findMatchingPresetOrFallback(queryInput, chosenOption);
+      // Check if the input question matches a known preset for demo fallback
+      const matchingPreset = PRESET_QUERIES.find(
+        (p) => p.question.trim().toLowerCase() === queryInput.trim().toLowerCase()
+      );
 
       if (matchingPreset) {
-        if (matchingPreset.isAmbiguous && !chosenOption) {
-          setLiveClarification({
-            question: matchingPreset.clarificationQuestion,
-            options: matchingPreset.options
-          });
-          setLiveResult(null);
-          setQueryError(null);
-        } else {
-          setLiveClarification(null);
-          setLiveResult({
-            ...matchingPreset,
-            question: queryInput,
-            isOfflineFallback: true
-          });
-          setQueryError(null);
-          setActiveTab('sql');
-        }
+        setLiveResult({
+          ...matchingPreset,
+          isOfflineFallback: true
+        });
+        setQueryError(null);
+        setActiveTab('sql');
       } else {
-        setLiveClarification(null);
         setLiveResult(null);
-        setQueryError(
-          'QueryDB backend is currently offline. To run arbitrary AI queries against live PostgreSQL, start the backend with "npm run dev:all". In offline demo mode, you can ask questions about student CGPA, placements, attendance, or department averages.'
-        );
+        setQueryError(err.message || 'Unable to execute query. Make sure backend and AI services are running.');
       }
     } finally {
       setIsGenerating(false);
@@ -452,7 +359,7 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
               <div className="pt-4 border-t border-[var(--color-rule)] flex items-center justify-between gap-3">
                 <button
                   type="button"
-                  onClick={() => handleTriggerGenerate()}
+                  onClick={handleTriggerGenerate}
                   disabled={isGenerating || !queryInput.trim()}
                   style={{ whiteSpace: 'nowrap' }}
                   className="btn-primary flex-1 py-2.5 px-5 rounded-xl text-xs sm:text-sm font-medium cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
@@ -514,12 +421,6 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
 
                 {/* Right Tab Actions */}
                 <div className="flex items-center gap-2">
-                  {activeData?.isOfflineFallback && (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-[var(--color-paper-3)] text-[var(--color-ink-2)] border border-[var(--color-rule)]">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                      Preview Mode
-                    </span>
-                  )}
                   {activeTab === 'sql' && activeData?.sql && (
                     <button
                       type="button"
@@ -610,7 +511,7 @@ export default function SqlPlayground({ isDedicatedPage = false, onBack }) {
                       </div>
                       <div>
                         <h3 className="font-semibold text-sm text-[var(--color-ink)]">Query Failed</h3>
-                        <p className="text-xs text-[var(--color-muted)] mt-1.5 leading-relaxed break-words">
+                        <p className="text-xs text-[var(--color-muted)] mt-1 leading-relaxed font-mono">
                           {queryError}
                         </p>
                       </div>
